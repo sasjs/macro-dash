@@ -585,13 +585,15 @@
     try { localStorage.setItem(BEST_KEY, JSON.stringify(loadBests().concat(b))); } catch (e) {}
   }
 
-  /* DD/MM/YY hh:mm (SAS DDMMYY8.-style) for a stored best run; older
-   * entries may predate the `when` field */
+  /* DDMMMYY hh:mm (SAS DATE7.-style date, e.g. 04JUL26 14:32) for a stored
+   * best run; older entries may predate the `when` field */
+  var MONTHS3 = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                 "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
   function fmtWhen(b) {
     if (!b || !b.when) return "";
     var d = new Date(b.when);
     function p(n) { return (n < 10 ? "0" : "") + n; }
-    return p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" +
+    return p(d.getDate()) + MONTHS3[d.getMonth()] +
       String(d.getFullYear()).slice(-2) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
   }
 
