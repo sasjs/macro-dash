@@ -483,7 +483,7 @@
    * fastest time breaks ties. */
   function finalizeRun() {
     var sc = resolveScore();
-    var entry = { time: parseFloat(elapsed()), score: sc.score, amps: player.amps };
+    var entry = { time: parseFloat(elapsed()), score: sc.score, amps: player.amps, when: Date.now() };
     var prev = loadBest();
     player.newRecord = !prev || entry.score > prev.score ||
       (entry.score === prev.score && entry.time < prev.time);
@@ -572,6 +572,16 @@
     try { localStorage.setItem(BEST_KEY, JSON.stringify(b)); } catch (e) {}
   }
 
+  /* MM/DD/YY hh:mm (SAS MMDDYY8.-style) for a stored best run; older
+   * entries may predate the `when` field */
+  function fmtWhen(b) {
+    if (!b || !b.when) return "";
+    var d = new Date(b.when);
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    return p(d.getMonth() + 1) + "/" + p(d.getDate()) + "/" +
+      String(d.getFullYear()).slice(-2) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+
   // macro resolution score: && -> & resolution passes
   function resolveScore() {
     var s = "";
@@ -617,8 +627,10 @@
     var y0 = 398;
     if (best) {
       ctx.fillStyle = "#ffd54d";
+      var bestWhen = fmtWhen(best);
       ctx.fillText("PERSONAL BEST: " + best.time.toFixed(1) + "s  (score " +
-        best.score + ", & x" + best.amps + ")", eng.viewWidth / 2, y0);
+        best.score + ", & x" + best.amps + ")" +
+        (bestWhen ? "  on " + bestWhen : ""), eng.viewWidth / 2, y0);
       y0 += 22;
     }
     if (backendOn && leaderboard.length) {
@@ -797,6 +809,14 @@
         ctx.fillStyle = "#ffd54d";
         ctx.fillText("BEST RUN:  " + best.time.toFixed(1) + "s  (score " +
           best.score + ", & x" + best.amps + ")", W / 2, y);
+        var when = fmtWhen(best);
+        if (when) {
+          y += 20;
+          ctx.fillStyle = "#8aa8d8";
+          ctx.font = "13px monospace";
+          ctx.fillText("set on " + when, W / 2, y);
+          ctx.font = "16px monospace";
+        }
         var sc = resolveScore();
         y += 34;
         ctx.fillStyle = "#dbe7ff";
