@@ -81,7 +81,7 @@
   // test hook: force a state (used by headless smoke tests)
   window.MACRODASH_FORCE = function (s) {
     if (s === "complete") startComplete();
-    if (s === "board") boardT = 0;
+    if (s === "board" || s === "dump") boardT = 0;
     if (s === "title") audio.stopMusic(); // brand click goes "home"
     state = s;
   };
@@ -96,7 +96,7 @@
     audio.unlock();
     // on title/win/dead/finale screens a canvas tap acts as ENTER (mobile)
     if (state === "title" || state === "win" || state === "dead" ||
-        state === "complete" || state === "board") {
+        state === "complete" || state === "board" || state === "dump") {
       document.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter" }));
       return;
     }
@@ -836,8 +836,98 @@
     ctx.textAlign = "left";
   }
 
+  /* the ABEND dump: finish page for runs that ended in death.  Styled
+   * like a SAS log dump (left-aligned log lines), with the high scores
+   * (leaderboard when configured, personal best otherwise) underneath. */
+  function drawDump() {
+    boardT++;
+    var W = eng.viewWidth, H = eng.worldHeight;
+    ctx.fillStyle = "#061224";
+    ctx.fillRect(0, 0, W, H);
+
+    // log dump header
+    ctx.textAlign = "left";
+    var sc = resolveScore();
+    var lines = [
+      { t: "ERROR: Job aborted.  The SAS System stopped processing this job.", c: "#e53935" },
+      { t: "NOTE: Dump of the WORK library follows.", c: "#8aa8d8" },
+      { t: "      & x" + sc.raw + " -> " + sc.resolved + " resolved (" + sc.passes + " passes)", c: "#ffd54d" },
+      { t: "      TIME " + elapsed() + "s   SCORE " + sc.score +
+           (player.newRecord ? "   *** NEW RECORD ***" : ""), c: "#dbe7ff" }
+    ];
+    if (player.errs > 0 || player.warns > 0) {
+      lines.push({ t: "      hits taken: " + player.errs + " ERROR, " +
+        player.warns + " WARNING", c: "#e57373" });
+    }
+    ctx.font = "14px monospace";
+    var ly = 70;
+    lines.forEach(function (l, i) {
+      var at = i * 20;
+      if (boardT === at) audio.collect();
+      if (boardT < at) return;
+      ctx.fillStyle = l.c;
+      ctx.fillText(l.t, 40, ly);
+      ly += 24;
+    });
+
+    // high scores
+    var y = ly + 46;
+    ctx.textAlign = "center";
+    if (boardT > 100) {
+      ctx.fillStyle = "#ffd54d";
+      ctx.font = "bold 24px monospace";
+      ctx.fillText("HIGH SCORES", W / 2, y);
+      y += 30;
+      if (backendOn && leaderboard.length) {
+        ctx.fillStyle = "#8aa8d8";
+        ctx.font = "13px monospace";
+        ctx.fillText("RANK   NAME           TIME       SCORE", W / 2, y);
+        y += 10;
+        leaderboard.slice(0, 5).forEach(function (s, i) {
+          y += 22;
+          var me = playerRank === i + 1;
+          ctx.fillStyle = me ? "#43a047" : "#dbe7ff";
+          var row = (i + 1) + ".      " +
+            (s.NAME + "            ").slice(0, 12) + "  " +
+            s.TIME.toFixed(1) + "s";
+          while (row.length < 26) row += " ";
+          row += s.SCORE;
+          fitText(row, y, me ? "bold " : "", 15);
+        });
+      } else {
+        ctx.fillStyle = "#8aa8d8";
+        ctx.font = "13px monospace";
+        ctx.fillText(backendOn ? "no scores yet - be the first!"
+          : "personal best (local only)", W / 2, y);
+        var best = loadBest();
+        if (best) {
+          y += 30;
+          ctx.fillStyle = "#ffd54d";
+          ctx.font = "16px monospace";
+          ctx.fillText("BEST RUN:  " + best.time.toFixed(1) + "s  (score " +
+            best.score + ", & x" + best.amps + ")", W / 2, y);
+          var when = fmtWhen(best);
+          if (when) {
+            y += 20;
+            ctx.fillStyle = "#8aa8d8";
+            ctx.font = "13px monospace";
+            ctx.fillText("set on " + when, W / 2, y);
+          }
+        }
+      }
+    }
+
+    if (boardT > 120 && Math.floor(Date.now() / 500) % 2) {
+      ctx.fillStyle = "#e53935";
+      ctx.font = "bold 16px monospace";
+      ctx.fillText("ENTER / RUN to resubmit the job", W / 2, 450);
+    }
+    ctx.textAlign = "left";
+  }
+
   function draw() {
     if (state === "title") { drawTitle(); return; }
+    if (state === "dump") { drawDump(); return; }
     if (state === "config") { drawConfig(); return; }
     if (state === "complete") { drawComplete(); return; }
     if (state === "board") { drawBoard(); return; }
@@ -1024,7 +1114,7 @@
         "& x" + dsc.raw + " -> " + dsc.resolved + " resolved (" + dsc.passes +
         " passes)  TIME " + elapsed() + "s  SCORE " + dsc.score +
         (player.newRecord ? "  *** NEW RECORD ***" : "") +
-        "  [ENTER / RUN to resubmit]");
+        "  [ENTER / RUN for the dump]");
     } else if (state === "winname") {
       overlay(runEnd === "dead" ? "ERROR: Job aborted." : "NOTE: PROC PRINT completed.",
         "ENTER YOUR INITIALS: " + initials + (Math.floor(Date.now() / 500) % 2 ? "_" : " ") +
@@ -1106,6 +1196,8 @@
       levelIdx = 0; level = LEVELS[levelIdx]; eng.setLevel(level);
       startPlay(true); // fresh run from level 1
     } else if (state === "dead") {
+      state = "dump"; boardT = 0; // the ABEND dump finish page
+    } else if (state === "dump") {
       levelIdx = 0; level = LEVELS[levelIdx]; eng.setLevel(level);
       startPlay(true); // death ends the run - start again from level 1
     } else if (state === "win") {
