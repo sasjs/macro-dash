@@ -1,0 +1,29 @@
+{
+  "name": "@sasjs/macrodash",
+  "repository": "https://github.com/sasjs/macrodash",
+  "version": "0.1.0",
+  "description": "Macro Dash - a SAS-themed HTML5 platform bouncer, deployable to Viya via SASjs streaming",
+  "keywords": [
+    "SAS",
+    "SASViya",
+    "SASjs",
+    "game"
+  ],
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "test": "node test/reachability.js",
+    "start": "cd src && python3 -m http.server 8000",
+    "devsetup": "node scripts/devsetup.js",
+    "deploy": "sasjs cbd -t local",
+    "mock:deploy": "node scripts/deploy-mocks.js",
+    "prepare": "cp node_modules/@sasjs/adapter/index.js src/sasjs.js"
+  },
+  "devDependencies": {
+    "@sasjs/cli": "^4.17.4",
+    "@sasjs/core": "^5.0.0"
+  },
+  "dependencies": {
+    "@sasjs/adapter": "^4.17.3"
+  }
+}

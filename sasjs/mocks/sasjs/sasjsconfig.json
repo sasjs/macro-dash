@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/sasjs/utils/main/src/types/sasjsconfig-schema.json",
+  "defaultTarget": "mock",
+  "syncDirectories": ["sasjs/services"],
+  "targets": [
+    {
+      "name": "mock",
+      "serverUrl": "http://localhost:5000",
+      "serverType": "SASJS",
+      "httpsAgentOptions": {
+        "allowInsecureRequests": true
+      },
+      "appLoc": "/Public/app/macrodash"
+    }
+  ]
+}

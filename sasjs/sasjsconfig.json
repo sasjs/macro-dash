@@ -1,0 +1,70 @@
+{
+  "$schema": "https://raw.githubusercontent.com/sasjs/utils/main/src/types/sasjsconfig-schema.json",
+  "streamConfig": {
+    "streamWeb": true,
+    "streamWebFolder": "web",
+    "webSourcePath": "src",
+    "streamServiceName": "MacroDash",
+    "streamLogo": "macrodash.png"
+  },
+  "macroFolders": [
+    "sasjs/macros"
+  ],
+  "jobConfig": {
+    "jobFolders": [
+      "sasjs/jobs/common"
+    ]
+  },
+  "serviceConfig": {
+    "serviceFolders": [
+      "sasjs/services/common"
+    ]
+  },
+  "defaultTarget": "local",
+  "targets": [
+    {
+      "name": "local",
+      "serverUrl": "http://localhost:5000",
+      "serverType": "SASJS",
+      "httpsAgentOptions": {
+        "allowInsecureRequests": true
+      },
+      "appLoc": "/Public/app/macrodash",
+      "deployConfig": {
+        "deployServicePack": true,
+        "deployScripts": []
+      }
+    },
+    {
+      "name": "viya",
+      "serverUrl": "",
+      "serverType": "SASVIYA",
+      "httpsAgentOptions": {
+        "allowInsecureRequests": false
+      },
+      "appLoc": "/Public/app/macrodash",
+      "contextName": "SAS Job Execution compute context"
+    },
+    {
+      "name": "sas9",
+      "serverUrl": "",
+      "serverType": "SAS9",
+      "appLoc": "/Public/app/macrodash",
+      "serverName": "SASApp",
+      "repositoryName": "Foundation"
+    },
+    {
+      "name": "server",
+      "serverUrl": "https://sas.4gl.io",
+      "serverType": "SASJS",
+      "httpsAgentOptions": {
+        "allowInsecureRequests": false
+      },
+      "appLoc": "/Public/app/macrodash",
+      "deployConfig": {
+        "deployServicePack": true,
+        "deployScripts": []
+      }
+    }
+  ]
+}

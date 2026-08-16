@@ -1,0 +1,157 @@
+body {
+  background: #0b1f3a;
+  color: #dbe7ff;
+  font-family: monospace;
+  text-align: center;
+  margin: 0;
+  padding: 1em;
+}
+
+/* clickable brand header: logo + gradient title + tagline */
+#brand {
+  /* block-level (not inline-flex): an inline box shares a line with the
+     inline-block #game canvas, and baseline alignment sinks the brand to the
+     canvas bottom on wide viewports */
+  display: flex;
+  width: fit-content;
+  margin: 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 12px;
+  transition: background 0.15s;
+}
+
+#brand:hover {
+  background: #122a4d;
+}
+
+#brand img {
+  image-rendering: pixelated;
+  border-radius: 6px;
+}
+
+#brand .brandtext {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.9em;
+  letter-spacing: 0.18em;
+  background: linear-gradient(90deg, #7fc4ff 0%, #4da3ff 45%, #7C4DFF 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.tagline {
+  color: #8aa8d8;
+  font-size: 0.75em;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+#game {
+  display: inline-block;
+  border: 4px solid #4da3ff;
+  background: #000;
+}
+
+canvas {
+  display: block;
+  image-rendering: pixelated;
+  max-width: 100%;
+  height: auto;
+}
+
+#game {
+  max-width: 100%;
+}
+
+sasjs {
+  display: none;
+}
+
+/* ---- on-screen controls: RUN left, arrows right ---- */
+#pad {
+  width: 808px; /* matches #game (800px canvas + 2x4px border) */
+  max-width: 100%;
+  margin: 16px auto 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.padbtn {
+  font-family: monospace;
+  font-weight: bold;
+  color: #dbe7ff;
+  background: #1a3a66;
+  border: 3px solid #4da3ff;
+  border-radius: 14px;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.padbtn.held {
+  background: #4da3ff;
+  color: #061224;
+}
+
+/* big round RUN button, left thumb */
+.runbtn {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.runbtn .runlbl {
+  font-size: 12px;
+  letter-spacing: 0.2em;
+}
+
+/* arrow cluster, right thumb: up above left/right */
+.arrows {
+  display: grid;
+  grid-template-areas:
+    ". up ."
+    "left . right";
+  gap: 10px;
+}
+
+.abtn {
+  width: 68px;
+  height: 68px;
+  font-size: 22px;
+}
+
+.abtn.up    { grid-area: up; }
+.abtn.left  { grid-area: left; }
+.abtn.right { grid-area: right; }
+
+/* bigger targets on touch devices */
+@media (pointer: coarse) {
+  .runbtn { width: 104px; height: 104px; }
+  .abtn { width: 78px; height: 78px; font-size: 26px; }
+}
+
+.hint {
+  color: #8aa8d8;
+  font-size: 0.9em;
+}

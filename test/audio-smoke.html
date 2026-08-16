@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>audio smoke</title></head>
+<body>
+<pre id="out">pending</pre>
+<script src="../src/js/audio.js"></script>
+<script>
+  var out = document.getElementById("out");
+  try {
+    var A = window.MACRODASH_AUDIO;
+    var c = A.unlock();
+    A.startMusic();
+    A.jump();
+    setTimeout(function () {
+      out.textContent = "AUDIO_STATE=" + (c ? c.state : "NO-CONTEXT") +
+        " TIME=" + (c ? c.currentTime.toFixed(2) : "-");
+    }, 500);
+  } catch (e) {
+    out.textContent = "ERROR: " + e.message;
+  }
+</script>
+</body>
+</html>

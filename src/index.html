@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; object-src 'none'; base-uri 'self'">
+  <title>Macro Dash</title>
+  <link rel="stylesheet" href="macrodash.css">
+</head>
+
+<body>
+
+  <a id="brand" href="./" title="Back to the title screen">
+    <img src="macrodash.png" alt="" width="34" height="45">
+    <span class="brandtext">
+      <h1>Macro Dash</h1>
+      <span class="tagline">a DATA step adventure</span>
+    </span>
+  </a>
+
+  <div id="game"></div>
+
+  <!-- on-screen controls (bound by js/controls.js):
+       RUN (hold) on the left; arrows on the right (up = jump).
+       On title/win/dead screens, tapping the canvas = ENTER. -->
+  <div id="pad">
+    <button type="button" id="pad-run" class="padbtn runbtn" aria-label="Run">
+      <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true">
+        <circle cx="14" cy="4" r="2.2"></circle>
+        <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12.5 7.5 L9.5 12 L12.5 14.5 L11 20"></path>
+          <path d="M9.5 12 L5.5 15"></path>
+          <path d="M12.5 8.5 L16 10.5 L19.5 9.5"></path>
+          <path d="M12.5 14.5 L16 18"></path>
+        </g>
+      </svg>
+      <span class="runlbl">RUN</span>
+    </button>
+    <div class="arrows">
+      <button type="button" id="pad-up" class="padbtn abtn up" aria-label="Jump">&#9650;</button>
+      <button type="button" id="pad-left" class="padbtn abtn left" aria-label="Left">&#9664;</button>
+      <button type="button" id="pad-right" class="padbtn abtn right" aria-label="Right">&#9654;</button>
+    </div>
+  </div>
+
+  <!-- adapter config: serverType SASJS for sasjs/server (sas.4gl.io); when
+       deployed to Viya, rebuild with serverType="SASVIYA".
+       The configured attribute is flipped to "true" by the configure
+       service (which rewrites this file on SASjs Drive), so the page knows
+       immediately on load whether a results folder is set up. -->
+  <sasjs serverType="SASJS" appLoc="/Public/app/macrodash" debug="false" configured="false"></sasjs>
+
+  <p class="hint">Arrows / WASD to move, Space to jump, hold Shift to RUN. Click the canvas to enable sound.</p>
+
+  <script src="sasjs.js"></script>
+  <script src="js/backend.js"></script>
+  <script src="js/level.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/controls.js"></script>
+
+</body>
+
+</html>

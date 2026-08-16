@@ -1,0 +1,1115 @@
+/* Macro Dash - game logic.  Level 1: The WORK Library; Level 2: Batch at
+ * Midnight.  Levels advance on the win screen (ENTER), per-level bests are
+ * kept in localStorage. */
+(function () {
+  "use strict";
+
+  var LEVELS = window.MACRODASH_LEVELS;
+  var LEVEL_NAMES = window.MACRODASH_LEVEL_NAMES || [];
+  var levelIdx = 0;
+  var level = LEVELS[levelIdx];
+  var audio = window.MACRODASH_AUDIO;
+  var eng = window.MACRODASH_ENGINE.create(document.getElementById("game"), level, {
+    viewWidth: 800
+  });
+  var TILE = eng.TILE;
+  var ctx = eng.ctx;
+
+  var GRAVITY = 0.8;    // snappier, less floaty arcs (Macro Dash tuning)
+  var WALK = 5.5;
+  var RUN = 11;
+  var JUMP = -12.75;   // ~3 tiles + margin (~102px vs 96px needed)
+  var JUMP_HI = -16.25; // ~5 tiles + margin (~166px vs 160px needed)
+  var BOOST_FRAMES = 720; // 12s of FORMAT power
+
+  // ---- parse level into entities ----
+  /* A game is one RUN across all levels: amps, health, error/warning counts
+   * and the speedrun clock carry over; the score is only finalised when the
+   * run ENDS (death, or the final portal).  init(true) starts a fresh run;
+   * init(false) advances to the next level keeping the run state. */
+  var player, amps = [], enemies = [], shrooms = [], portal = null, tilesRemoved = {};
+
+  function init(newRun) {
+    amps = []; enemies = []; shrooms = []; portal = null; tilesRemoved = {};
+    var sx = 0, sy = 0;
+    for (var r = 0; r < level.length; r++) {
+      for (var c = 0; c < level[r].length; c++) {
+        var ch = level[r][c];
+        var x = c * TILE, y = r * TILE;
+        if (ch === "P") {
+          sx = x; sy = y;
+        } else if (ch === "&") {
+          amps.push({ x: x + 8, y: y + 8, w: 16, h: 16, taken: false });
+        } else if (ch === "E" || ch === "W" || ch === "A") {
+          var spd = ch === "E" ? 1.2 : ch === "A" ? 2.5 : 0.7;
+          enemies.push({ x: x, y: y + 8, w: TILE - 4, h: TILE - 10,
+                         vx: spd, speed: spd, vy: 0, type: ch, dead: false });
+        } else if (ch === "F") {
+          shrooms.push({ x: x + 4, y: y + 8, w: 24, h: 24, vx: 0, vy: 0, taken: false });
+        } else if (ch === "|") {
+          portal = { x: x, y: (r - 1) * TILE, w: TILE, h: TILE * 2 };
+        }
+      }
+    }
+    if (newRun || !player) {
+      player = { x: sx, y: sy, w: TILE - 6, h: TILE - 2, vx: 0, vy: 0,
+                 big: false, boost: 0, health: 100, amps: 0,
+                 errs: 0, warns: 0, iframes: 0, dir: 1,
+                 startT: performance.now(), endT: 0 };
+    } else {
+      // next level, same run: keep score/health/clock, reset position
+      if (player.big) shrink();
+      player.boost = 0;
+      player.x = sx; player.y = sy; player.vx = 0; player.vy = 0;
+      player.iframes = 90; // brief protection on level entry
+      player.endT = 0;
+    }
+  }
+  init(true);
+
+  // ---- input (keyboard + mouse) ----
+  var keys = {};
+  var mouseHeld = false;
+
+  function press(code, down) {
+    keys[code] = down;
+    if (down) audio.unlock();
+  }
+  // exposed for the on-screen controls (js/controls.js)
+  window.MACRODASH_PRESS = press;
+  window.MACRODASH_STATE = function () { return state; };
+  // test hook: force a state (used by headless smoke tests)
+  window.MACRODASH_FORCE = function (s) {
+    if (s === "complete") startComplete();
+    if (s === "board") boardT = 0;
+    if (s === "title") audio.stopMusic(); // brand click goes "home"
+    state = s;
+  };
+  document.addEventListener("keydown", function (e) {
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Space"].indexOf(e.code) >= 0) e.preventDefault();
+    press(e.code, true);
+  });
+  document.addEventListener("keyup", function (e) { press(e.code, false); });
+
+  // mouse: hold left/right third of canvas to run, click upper area to jump
+  eng.canvas.addEventListener("mousedown", function (e) {
+    audio.unlock();
+    // on title/win/dead/finale screens a canvas tap acts as ENTER (mobile)
+    if (state === "title" || state === "win" || state === "dead" ||
+        state === "complete" || state === "board") {
+      document.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter" }));
+      return;
+    }
+    var rect = eng.canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    if (my < rect.height * 0.4) keys.MouseJump = true;
+    if (mx < rect.width / 2) { keys.MouseLeft = true; } else { keys.MouseRight = true; }
+    mouseHeld = true;
+  });
+  document.addEventListener("mouseup", function () {
+    if (mouseHeld) { keys.MouseJump = keys.MouseLeft = keys.MouseRight = false; mouseHeld = false; }
+  });
+
+  function input() {
+    return {
+      left: keys.ArrowLeft || keys.KeyA || keys.MouseLeft,
+      right: keys.ArrowRight || keys.KeyD || keys.MouseRight,
+      jump: keys.ArrowUp || keys.KeyW || keys.Space || keys.MouseJump,
+      run: keys.ShiftLeft || keys.ShiftRight
+    };
+  }
+
+  // ---- pixel-art running man (12x16, 2-frame run cycle) ----
+  // "." = transparent, "#" = SAS blue body
+  var RUNNER = [
+    [ // frame 0: stride
+      "....#####...",
+      "...#######..",
+      "...###.###..",
+      "...#######..",
+      "....#####...",
+      "..#######...",
+      ".#########..",
+      "#.####.###.#",
+      "#..###...#..",
+      "...#####....",
+      "..###.###...",
+      "..##...##...",
+      ".##.....##..",
+      ".#.......#..",
+      "##.......##.",
+      "............"
+    ],
+    [ // frame 1: legs scissored
+      "....#####...",
+      "...#######..",
+      "...###.###..",
+      "...#######..",
+      "....#####...",
+      "...######...",
+      "..########..",
+      "#.#########.",
+      "#...###...#.",
+      "....###.....",
+      "...#####....",
+      "..###.###...",
+      ".##.....##..",
+      "##.......##.",
+      "#.........#.",
+      "............"
+    ]
+  ];
+
+  // frames 2-3: exaggerated wide stride for full-speed running
+  RUNNER.push(
+    [
+      "....#####...",
+      "...#######..",
+      "...###.###..",
+      "...#######..",
+      "....#####...",
+      "..#######...",
+      ".#########..",
+      "#.####.####.",
+      "#..###....#.",
+      "...#####....",
+      "..###..###..",
+      ".##.....##..",
+      "##.......##.",
+      "#.........#.",
+      "............",
+      "............"
+    ],
+    [
+      "....#####...",
+      "...#######..",
+      "...###.###..",
+      "...#######..",
+      "....#####...",
+      "...######...",
+      "..########..",
+      "#.#########.",
+      "#...###...#.",
+      "....###.....",
+      "...###......",
+      "....####....",
+      "......###...",
+      ".......##...",
+      "......##....",
+      "............"
+    ]
+  );
+
+  function drawSprite(grid, x, y, w, h, flip, color) {
+    var pw = w / grid[0].length;
+    var ph = h / grid.length;
+    ctx.fillStyle = color;
+    for (var r = 0; r < grid.length; r++) {
+      var row = grid[r];
+      for (var c = 0; c < row.length; c++) {
+        if (row[c] !== "#") continue;
+        var cc = flip ? row.length - 1 - c : c;
+        ctx.fillRect(Math.round(x + cc * pw), Math.round(y + r * ph),
+                     Math.ceil(pw), Math.ceil(ph));
+      }
+    }
+  }
+
+  // ---- particles ----
+  var parts = [];
+  function burst(x, y, color, n, spread) {
+    for (var i = 0; i < n; i++) {
+      parts.push({
+        x: x, y: y,
+        vx: (Math.random() - 0.5) * (spread || 6),
+        vy: -Math.random() * 5 - 1,
+        life: 30 + Math.random() * 20,
+        color: color
+      });
+    }
+  }
+  function updateParts() {
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var p = parts[i];
+      p.x += p.vx; p.y += p.vy; p.vy += 0.3; p.life--;
+      if (p.life <= 0) parts.splice(i, 1);
+    }
+  }
+  function drawParts() {
+    parts.forEach(function (p) {
+      ctx.globalAlpha = Math.min(1, p.life / 20);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, 4, 4);
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- update ----
+  var state = "title"; // title | play | dead | win | winname | pause | config
+  var jingled = false;
+
+  // ---- backend leaderboard ----
+  var backend = window.MACRODASH_BACKEND;
+  var backendOn = false;
+  var leaderboard = [];
+  var playerRank = null;
+  var initials = "";
+  var configInput = "";
+  var configMsg = "";
+
+  function refreshScores() {
+    if (!backendOn) return;
+    backend.getScores(function (rows) { leaderboard = rows || []; });
+  }
+
+  /* the configured attribute stamped into index.html by the configure
+     service tells us synchronously whether a backend exists - when it does
+     not, we call NO services at all (a getconfig round trip is pointless:
+     the stamp IS the answer, and on platforms like Viya where the streamed
+     html cannot self-update, the stamp is maintained at build/deploy time).
+     The only service reachable while unconfigured is configure itself. */
+  backendOn = backend.isConfigured ? backend.isConfigured() : false;
+  if (backendOn) refreshScores();
+
+  // text entry handler for winname / config states
+  document.addEventListener("keydown", function (e) {
+    if (e.repeat) return;
+    if (state === "winname") {
+      if (e.code === "Enter") {
+        e._sbHandled = true; // don't let the restart handler see this Enter
+        if (initials.length > 0) {
+          backend.saveScore({
+            name: initials, time: elapsed(), score: resolveScore().score,
+            amps: player.amps
+          }, function (res) {
+            if (res) { leaderboard = res.scores; playerRank = res.rank; }
+          });
+        }
+        // continue to wherever the run ended (dead / win / complete)
+        state = runEnd || "title";
+        if (state === "complete") startComplete();
+      } else if (e.code === "Backspace") {
+        initials = initials.slice(0, -1);
+      } else if (e.code === "Escape") {
+        state = runEnd || "title"; // skip submission
+        if (state === "complete") startComplete();
+      } else if (/^[a-zA-Z0-9]$/.test(e.key) && initials.length < 12) {
+        initials += e.key.toUpperCase();
+      }
+    } else if (state === "config") {
+      if (e.code === "Enter") {
+        e._sbHandled = true;
+        configMsg = "configuring...";
+        backend.configure(configInput, function (res) {
+          if (res && res.STATUS === "configured") {
+            backendOn = true;
+            if (backend.setConfigured) backend.setConfigured();
+            configMsg = "NOTE: results folder configured.";
+            refreshScores();
+          } else {
+            configMsg = "ERROR: could not configure (check folder/permissions).";
+          }
+        });
+      } else if (e.code === "KeyD") {
+        backend.setDebug(!backend.isDebug());
+      } else if (e.code === "Backspace") {
+        configInput = configInput.slice(0, -1);
+      } else if (e.code === "Escape") {
+        state = "title";
+      } else if (/^[\x20-\x7e]$/.test(e.key) && configInput.length < 200) {
+        configInput += e.key;
+      }
+    } else if (state === "title" && e.code === "KeyC") {
+      configInput = "";
+      configMsg = "";
+      state = "config";
+    }
+  });
+  document.addEventListener("keydown", function () {
+    if (state === "title" && !jingled) { jingled = true; audio.unlock(); audio.jingle(); }
+  });
+
+  var deathT = 0;
+
+  function update() {
+    // death animation: the runner turns red and floats skyward
+    if (state === "dying") {
+      if (player.iframes > 0) player.iframes--;
+      player.y += player.vy;
+      player.vy = Math.min(player.vy + 0.08, -2.5); // easing into the ascent
+      deathT++;
+      if (deathT === 1 || deathT % 12 === 0) {
+        burst(player.x + player.w / 2, player.y + player.h, "#b71c1c", 6, 4);
+      }
+      if (deathT > 110) endRun(); // ~2s, then the log verdict
+      return;
+    }
+    if (state !== "play") return;
+    var inp = input();
+
+    var speed = inp.run ? RUN : WALK;
+    if (inp.left) { player.vx = -speed; player.dir = -1; }
+    else if (inp.right) { player.vx = speed; player.dir = 1; }
+    else player.vx = 0;
+    player.moving = !!player.vx;
+    player.animTick = (player.animTick || 0) + Math.abs(player.vx);
+    if (inp.jump && player.onGround) {
+      player.vy = player.boost > 0 ? JUMP_HI : JUMP;
+      audio.jump();
+    }
+    if (player.boost > 0) {
+      player.boost--;
+      if (player.boost === 0 && player.big) shrink(); // FORMAT wore off
+    }
+    player.vy = Math.min(player.vy + GRAVITY, 16);
+    eng.moveAndCollide(player);
+    if (player.iframes > 0) player.iframes--;
+
+    // fell out of the world
+    if (player.y > eng.worldHeight + 64) { damage(100, "E"); }
+
+    // ampersands: +5 health each (macro food)
+    amps.forEach(function (a) {
+      if (!a.taken && eng.overlap(player, a)) {
+        a.taken = true; player.amps++; audio.collect();
+        player.health = Math.min(100, player.health + 5);
+        burst(a.x + a.w / 2, a.y + a.h / 2, "#ffd54d", 10);
+      }
+    });
+
+    // the clock eats the log: -2 health every second - keep moving!
+    player.drainTick = (player.drainTick || 0) + 1;
+    if (player.drainTick >= 30) {
+      player.drainTick = 0;
+      player.health = Math.max(0, player.health - 1);
+      checkDeath();
+    }
+
+    // format mushroom
+    shrooms.forEach(function (s) {
+      if (!s.taken) {
+        s.vy = Math.min(s.vy + GRAVITY, 16);
+        eng.moveAndCollide(s);
+        if (eng.overlap(player, s)) {
+          s.taken = true;
+          if (!player.big) {
+            player.big = true;
+            player.h *= 1.6; player.w *= 1.4; player.y -= player.h * 0.4;
+          }
+          player.boost = BOOST_FRAMES;
+          audio.powerup();
+          burst(s.x + 12, s.y + 12, "#ff8a65", 16, 8);
+        }
+      }
+    });
+
+    // enemies
+    enemies.forEach(function (e) {
+      if (e.dead) return;
+      e.vy = Math.min(e.vy + GRAVITY, 16);
+      eng.moveAndCollide(e);
+      if (e.hitWall) e.vx = -e.vx || e.speed * (e.hitWall > 0 ? -1 : 1);
+      e.hitWall = 0;
+      // turn around at ledges
+      if (e.onGround) {
+        var aheadCol = Math.floor((e.x + (e.vx > 0 ? e.w + 2 : -2)) / TILE);
+        var belowRow = Math.floor((e.y + e.h + 2) / TILE);
+        if (!eng.solidAt(aheadCol, belowRow)) e.vx = -e.vx;
+      }
+      if (eng.overlap(player, e)) {
+        // stomp kills if falling onto enemy.  Judge by LAST frame's position
+        // (player bottom above enemy top) - at high fall speeds the player can
+        // tunnel deep into the enemy in a single frame, and a penetration-depth
+        // test would wrongly count a clean stomp as a side hit.
+        var prevBottom = player.y - player.vy + player.h;
+        if (player.vy > 0 && prevBottom <= e.y + 8) {
+          e.dead = true; player.vy = JUMP * 0.6; audio.hurt();
+          burst(e.x + e.w / 2, e.y + e.h / 2,
+            e.type === "E" ? "#e53935" : e.type === "A" ? "#880e4f" : "#ffb300", 14, 8);
+          if (e.type === "A") {
+            // killing an ABORT cleans up the log: +25 health
+            player.health = Math.min(100, player.health + 25);
+            burst(player.x + player.w / 2, player.y, "#43a047", 12, 6);
+            audio.powerup();
+          }
+        } else if (player.iframes === 0) {
+          // side hit: the enemy is resolved too, but takes a life with it
+          // (touching an ABORT ends the job immediately)
+          e.dead = true;
+          burst(e.x + e.w / 2, e.y + e.h / 2,
+            e.type === "E" ? "#e53935" : e.type === "A" ? "#880e4f" : "#ffb300", 14, 8);
+          damage(e.type === "E" ? 34 : e.type === "A" ? 100 : 12, e.type);
+        }
+      }
+    });
+
+    // portal - blocked while an ABORT is still outstanding
+    if (portal && eng.overlap(player, portal)) {
+      var abortsLeft = enemies.filter(function (e) {
+        return e.type === "A" && !e.dead;
+      }).length;
+      if (abortsLeft > 0) {
+        gateMsg = 90; // frames to show the refusal
+        audio.hurt();
+        player.vx = -player.dir * 4; // bounce the runner back
+      } else {
+      gateMsg = 0;
+      burst(player.x + player.w / 2, player.y + player.h / 2, "#7C4DFF", 24, 10);
+      burst(player.x + player.w / 2, player.y + player.h / 2, "#ffd54d", 12, 8);
+      player.endT = performance.now();
+      audio.stopMusic();
+      audio.win();
+
+      var final = levelIdx + 1 >= LEVELS.length;
+      runEnd = final ? "complete" : "win";
+      if (final) finalizeRun(); // mid-level portals don't score
+      // backend leaderboard: collect initials first (finale waits)
+      if (final && backendOn) { initials = ""; state = "winname"; }
+      else {
+        state = runEnd;
+        if (state === "complete") startComplete();
+      }
+      }
+    }
+  }
+
+  var gateMsg = 0; // frames remaining for the "ABORT outstanding" refusal
+
+  /* where to go after the initials screen: dead (job aborted), win (next
+   * level) or complete (finale) */
+  var runEnd = null;
+
+  /* score a run at its end (death or final portal).  Best = highest score;
+   * fastest time breaks ties. */
+  function finalizeRun() {
+    var sc = resolveScore();
+    var entry = { time: parseFloat(elapsed()), score: sc.score, amps: player.amps };
+    var prev = loadBest();
+    player.newRecord = !prev || entry.score > prev.score ||
+      (entry.score === prev.score && entry.time < prev.time);
+    if (player.newRecord) saveBest(entry);
+  }
+
+  // ---- finale: "completed" animation -> high score board ----
+  var compT = 0, boardT = 0, confetti = [];
+  var CONFETTI_COLORS = ["#4da3ff", "#ffd54d", "#43a047", "#e53935", "#7C4DFF", "#ff8a65"];
+
+  function startComplete() {
+    compT = 0;
+    confetti = [];
+    for (var i = 0; i < 80; i++) {
+      confetti.push({
+        x: Math.random() * eng.viewWidth,
+        y: -Math.random() * eng.worldHeight,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: 1 + Math.random() * 2.5,
+        w: 4 + Math.random() * 4,
+        h: 3 + Math.random() * 4,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        spin: Math.random() * Math.PI,
+        semi: i % 4 !== 3 // 3/4 of the confetti is semicolons - it IS SAS
+      });
+    }
+  }
+
+  function shrink() {
+    player.big = false;
+    player.boost = 0;
+    player.w /= 1.4; player.h /= 1.6;
+  }
+
+  function damage(n, type) {
+    player.health -= n;
+    if (type === "W") player.warns++; else if (type) player.errs++;
+    player.iframes = 60;
+    audio.hurt();
+    if (player.big) shrink(); // FORMAT wears off first
+    checkDeath();
+  }
+
+  function checkDeath() {
+    if (player.health <= 0) {
+      player.health = 0;
+      player.endT = performance.now();
+      audio.stopMusic();
+      if (player.y > eng.worldHeight) {
+        endRun(); // fell into a pit: he's already gone, no farewell rise
+      } else {
+        // death animation first: blood red, rises to the sky (state "dying")
+        state = "dying";
+        deathT = 0;
+        player.vy = -8;
+        player.iframes = 0; // or the blink check would keep him invisible
+      }
+    }
+  }
+
+  /* wrap up a run that ended in death */
+  function endRun() {
+    finalizeRun(); // the score counts at the point you die
+    runEnd = "dead";
+    if (backendOn) { initials = ""; state = "winname"; }
+    else state = "dead";
+  }
+
+  function elapsed() {
+    var end = player.endT || performance.now(); // frozen on win/death
+    return ((end - player.startT) / 1000).toFixed(1);
+  }
+
+  // ---- persistent best (localStorage; same-origin => CSP-safe) ----
+  // one best per RUN (a run spans all levels; the score counts at the end)
+  var BEST_KEY = "macrodash_best";
+
+  function loadBest() {
+    try {
+      var raw = localStorage.getItem(BEST_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function saveBest(b) {
+    try { localStorage.setItem(BEST_KEY, JSON.stringify(b)); } catch (e) {}
+  }
+
+  // macro resolution score: && -> & resolution passes
+  function resolveScore() {
+    var s = "";
+    for (var i = 0; i < player.amps; i++) s += "&";
+    var passes = 0, out = s;
+    while (out.indexOf("&&") >= 0) { out = out.replace(/&&/g, "&"); passes++; }
+    return { raw: player.amps, resolved: out.length, passes: passes,
+             score: player.amps * 100 + passes * 250 };
+  }
+
+  // ---- render ----
+  function drawTitle() {
+    ctx.fillStyle = "#061224";
+    ctx.fillRect(0, 0, eng.viewWidth, eng.worldHeight);
+    ctx.textAlign = "center";
+
+    ctx.fillStyle = "#4da3ff";
+    ctx.font = "bold 48px monospace";
+    ctx.fillText("MACRO DASH", eng.viewWidth / 2, 120);
+
+    ctx.fillStyle = "#ffd54d";
+    ctx.font = "16px monospace";
+    ctx.fillText("Level 1: The WORK Library", eng.viewWidth / 2, 160);
+
+    // our hero, mid-stride
+    drawSprite(RUNNER[Math.floor(Date.now() / 200) % 2],
+      eng.viewWidth / 2 - 24, 190, 48, 64, false, "#ffffff");
+
+    ctx.fillStyle = "#dbe7ff";
+    ctx.font = "14px monospace";
+    ctx.fillText("You are the DATA stepper.", eng.viewWidth / 2, 290);
+    ctx.fillText("Eliminate ERRORs and WARNINGs.", eng.viewWidth / 2, 312);
+    ctx.fillText("Collect ampersands.", eng.viewWidth / 2, 334);
+    ctx.fillText("Grab the FORMAT 10.2 mushroom for super jumps.", eng.viewWidth / 2, 356);
+
+    ctx.fillStyle = "#8aa8d8";
+    ctx.font = "13px monospace";
+    ctx.fillText("Arrows/WASD move  -  Space jump  -  Shift run  -  Mouse works too",
+      eng.viewWidth / 2, 376);
+
+    var best = loadBest();
+    ctx.font = "14px monospace";
+    var y0 = 398;
+    if (best) {
+      ctx.fillStyle = "#ffd54d";
+      ctx.fillText("PERSONAL BEST: " + best.time.toFixed(1) + "s  (score " +
+        best.score + ", & x" + best.amps + ")", eng.viewWidth / 2, y0);
+      y0 += 22;
+    }
+    if (backendOn && leaderboard.length) {
+      ctx.fillStyle = "#4da3ff";
+      ctx.fillText("LEADERBOARD:", eng.viewWidth / 2, y0);
+      ctx.fillStyle = "#dbe7ff";
+      // fewer rows when a personal best line is shown, so we never collide
+      // with the ENTER prompt below (canvas bottom is 480)
+      leaderboard.slice(0, best ? 2 : 3).forEach(function (s, i) {
+        y0 += 16;
+        ctx.fillText((i + 1) + ". " + s.NAME + "  " + s.TIME.toFixed(1) + "s  (" +
+          s.SCORE + ")", eng.viewWidth / 2, y0);
+      });
+    } else if (!backendOn) {
+      ctx.fillStyle = "#8aa8d8";
+      y0 += 8; // extra gap so this hint doesn't touch the line above
+      ctx.fillText("press C to configure the backend leaderboard", eng.viewWidth / 2, y0);
+    }
+
+    ctx.fillStyle = "#43a047";
+    ctx.font = "bold 18px monospace";
+    ctx.fillText("press ENTER or tap RUN to submit", eng.viewWidth / 2, 472);
+    ctx.textAlign = "left";
+  }
+
+  function drawConfig() {
+    ctx.fillStyle = "#061224";
+    ctx.fillRect(0, 0, eng.viewWidth, eng.worldHeight);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#4da3ff";
+    ctx.font = "bold 24px monospace";
+    ctx.fillText("MACRO DASH SETUP", eng.viewWidth / 2, 120);
+    ctx.fillStyle = "#dbe7ff";
+    ctx.font = "14px monospace";
+    ctx.fillText("Enter the target folder for the results dataset (scores.sas7bdat):",
+      eng.viewWidth / 2, 180);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(eng.viewWidth / 2 - 300, 210, 600, 30);
+    ctx.fillStyle = "#43a047";
+    ctx.font = "16px monospace";
+    ctx.fillText(configInput + (Math.floor(Date.now() / 500) % 2 ? "_" : " "),
+      eng.viewWidth / 2, 231);
+    ctx.fillStyle = "#ffb300";
+    ctx.font = "13px monospace";
+    ctx.fillText(configMsg, eng.viewWidth / 2, 280);
+    ctx.fillStyle = "#8aa8d8";
+    ctx.fillText("ENTER to save  -  ESC to cancel", eng.viewWidth / 2, 320);
+    ctx.fillStyle = backend.isDebug() ? "#43a047" : "#8aa8d8";
+    ctx.fillText("DEBUG (sasjs adapter): " + (backend.isDebug() ? "ON" : "OFF") +
+      "  -  press D to toggle", eng.viewWidth / 2, 360);
+    ctx.textAlign = "left";
+  }
+
+  // ---- finale screens ----
+  function drawComplete() {
+    compT++;
+    var W = eng.viewWidth, H = eng.worldHeight;
+    ctx.fillStyle = "#061224";
+    ctx.fillRect(0, 0, W, H);
+
+    // confetti
+    confetti.forEach(function (f) {
+      f.x += f.vx; f.y += f.vy; f.spin += 0.05;
+      if (f.y > H) { f.y = -10; f.x = Math.random() * W; }
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.spin);
+      ctx.fillStyle = f.color;
+      if (f.semi) {
+        ctx.font = "bold " + (16 + Math.round(f.w * 1.5)) + "px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(";", 0, 6);
+      } else {
+        ctx.fillRect(-f.w / 2, -f.h / 2, f.w, f.h);
+      }
+      ctx.restore();
+    });
+    ctx.textAlign = "left";
+
+    ctx.textAlign = "center";
+
+    // runner slides in and takes a bow (bounces)
+    var rx = Math.min(W / 2 - 24, -48 + compT * 6);
+    var bounce = rx >= W / 2 - 24 ? Math.abs(Math.sin(compT / 12)) * 10 : 0;
+    drawSprite(RUNNER[Math.floor(Date.now() / 200) % 2],
+      rx, 300 - bounce, 48, 64, false, "#ffffff");
+
+    // banner
+    if (compT > 20) {
+      ctx.globalAlpha = Math.min(1, (compT - 20) / 30);
+      ctx.fillStyle = "#43a047";
+      ctx.font = "bold 40px monospace";
+      ctx.fillText("JOB COMPLETE", W / 2, 110);
+      ctx.globalAlpha = 1;
+    }
+
+    // stats count in one by one
+    var sc = resolveScore();
+    var stats = [
+      "NOTE: PROC PRINT completed - report teleported to HQ (Cary, NC).",
+      "& x" + sc.raw + " -> " + sc.resolved + " resolved (" + sc.passes + " passes)",
+      "TIME " + elapsed() + "s   SCORE " + sc.score +
+        (player.newRecord ? "   *** NEW RECORD ***" : "")
+    ];
+    ctx.font = "16px monospace";
+    stats.forEach(function (s, i) {
+      var at = 70 + i * 45;
+      if (compT === at) audio.collect();
+      if (compT > at) {
+        ctx.fillStyle = i === 0 ? "#dbe7ff" : i === 1 ? "#ffd54d" : "#4da3ff";
+        fitText(s, 165 + i * 30, "", 16);
+      }
+    });
+
+    // clean-log stamp
+    if (player.errs === 0 && player.warns === 0 && compT > 210) {
+      var flash = Math.floor(compT / 15) % 2;
+      ctx.fillStyle = flash ? "#43a047" : "#7fd08a";
+      ctx.font = "bold 22px monospace";
+      ctx.fillText("0 ERRORS, 0 WARNINGS", W / 2, 290);
+    }
+
+    if (compT > 120 && Math.floor(Date.now() / 500) % 2) {
+      ctx.fillStyle = "#8aa8d8";
+      ctx.font = "14px monospace";
+      ctx.fillText("ENTER / RUN for the high score board", W / 2, 430);
+    }
+
+    // auto-advance after ~7s
+    if (compT > 420) { state = "board"; boardT = 0; }
+    ctx.textAlign = "left";
+  }
+
+  function drawBoard() {
+    boardT++;
+    var W = eng.viewWidth, H = eng.worldHeight;
+    ctx.fillStyle = "#061224";
+    ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = "center";
+
+    ctx.fillStyle = "#ffd54d";
+    ctx.font = "bold 32px monospace";
+    ctx.fillText("HIGH SCORES", W / 2, 80);
+    ctx.fillStyle = "#4da3ff";
+    ctx.font = "14px monospace";
+    ctx.fillText("MACRO DASH - FINAL RESULTS", W / 2, 110);
+
+    var y = 155;
+    if (backendOn && leaderboard.length) {
+      ctx.fillStyle = "#8aa8d8";
+      ctx.font = "13px monospace";
+      ctx.fillText("RANK   NAME           TIME       SCORE", W / 2, y);
+      y += 14;
+      leaderboard.slice(0, 8).forEach(function (s, i) {
+        y += 24;
+        var me = playerRank === i + 1;
+        ctx.fillStyle = me ? "#43a047" : "#dbe7ff";
+        ctx.font = (me ? "bold " : "") + "15px monospace";
+        var row = (i + 1) + ".      " +
+          (s.NAME + "            " ).slice(0, 12) + "  " +
+          s.TIME.toFixed(1) + "s";
+        while (row.length < 26) row += " ";
+        row += s.SCORE;
+        fitText(row, y, me ? "bold " : "", 15);
+      });
+    } else {
+      // offline: no shared leaderboard - just the local best run
+      ctx.fillStyle = "#8aa8d8";
+      ctx.font = "13px monospace";
+      ctx.fillText(backendOn ? "no scores yet - be the first!"
+        : "personal best (local only)", W / 2, y);
+      var best = loadBest();
+      y += 36;
+      ctx.font = "16px monospace";
+      if (best) {
+        ctx.fillStyle = "#ffd54d";
+        ctx.fillText("BEST RUN:  " + best.time.toFixed(1) + "s  (score " +
+          best.score + ", & x" + best.amps + ")", W / 2, y);
+        var sc = resolveScore();
+        y += 34;
+        ctx.fillStyle = "#dbe7ff";
+        ctx.fillText("THIS RUN:  " + elapsed() + "s  (score " + sc.score +
+          ", & x" + sc.raw + ")", W / 2, y);
+      } else {
+        ctx.fillStyle = "#44597a";
+        ctx.fillText("(no finished runs recorded yet)", W / 2, y);
+      }
+    }
+
+    if (Math.floor(Date.now() / 500) % 2) {
+      ctx.fillStyle = "#43a047";
+      ctx.font = "bold 16px monospace";
+      ctx.fillText("ENTER / RUN for the title screen", W / 2, 450);
+    }
+    ctx.textAlign = "left";
+  }
+
+  function draw() {
+    if (state === "title") { drawTitle(); return; }
+    if (state === "config") { drawConfig(); return; }
+    if (state === "complete") { drawComplete(); return; }
+    if (state === "board") { drawBoard(); return; }
+    var cam = eng.cameraX(player.x);
+    ctx.save();
+    ctx.translate(-cam, 0);
+
+    // background
+    ctx.fillStyle = "#061224";
+    ctx.fillRect(cam, 0, eng.viewWidth, eng.worldHeight);
+
+    // tiles: base fill per cell, then decorate each contiguous run as a
+    // mainframe rack (blinking lights), a keyboard (keycap rows) or a
+    // terminal (screen glint) - deterministic per run
+    var tileBlink = Math.floor(Date.now() / 350) % 2;
+    var r, c, ch;
+    for (r = 0; r < level.length; r++) {
+      for (c = 0; c < level[r].length; c++) {
+        ch = level[r][c];
+        if (ch === "#" || ch === "=") {
+          ctx.fillStyle = ch === "#" ? "#1a3a66" : "#2f5d9e";
+          ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+          ctx.fillStyle = "#4da3ff";
+          ctx.fillRect(c * TILE, r * TILE, TILE, 3);
+        }
+      }
+    }
+    for (r = 0; r < level.length; r++) {
+      for (c = 0; c < level[r].length; c++) {
+        ch = level[r][c];
+        if (ch !== "#" && ch !== "=") continue;
+        if (c > 0 && level[r][c - 1] === ch) continue; // run start only
+        var len = 0;
+        while (c + len < level[r].length && level[r][c + len] === ch) len++;
+        var x0 = c * TILE, y0 = r * TILE, w0 = len * TILE;
+        var kind = (r * 7 + c) % 3;
+        if (ch === "#") {
+          // ground = data-centre floor: drive bays with activity lights
+          // (decorate only the topmost # of each column run)
+          if (r > 0 && level[r - 1][c] === "#") continue;
+          ctx.fillStyle = "#0f2745";
+          for (var b = 0; b < len; b++)
+            ctx.fillRect(x0 + b * TILE + 1, y0 + 10, 1, TILE - 14); // bay seams
+          var lights = ["#43a047", "#ffb300"];
+          for (var l = 0; l < len; l++) {
+            ctx.fillStyle = ((l + tileBlink) % 2) ? lights[l % 2] : "#2f4a6e";
+            ctx.fillRect(x0 + l * TILE + 22, y0 + 6, 3, 3);          // LEDs
+          }
+        } else if (kind === 0) {
+          // mainframe rack: vent + blinking rack lights
+          ctx.fillStyle = "#0f2745";
+          ctx.fillRect(x0 + 3, y0 + TILE - 7, w0 - 6, 3);
+          var rack = ["#e53935", "#43a047", "#ffb300"];
+          for (var m = 0; m < Math.min(len * 2, 6); m++) {
+            ctx.fillStyle = (m === (tileBlink ? 1 : 0)) ? rack[m % 3] : "#1a3a66";
+            ctx.fillRect(x0 + 4 + m * 8, y0 + 5, 4, 3);
+          }
+        } else if (kind === 1) {
+          // keyboard: two keycap rows
+          ctx.fillStyle = "#16345c";
+          for (var k = 0; k < len * 4; k++) {
+            ctx.fillRect(x0 + 4 + k * 7, y0 + 8, 5, 4);
+            ctx.fillRect(x0 + 6 + k * 7, y0 + 15, 5, 4);
+          }
+        } else {
+          // terminal: dark screen with a pale glint
+          ctx.fillStyle = "#0b1f3a";
+          ctx.fillRect(x0 + 3, y0 + 6, w0 - 6, 12);
+          ctx.fillStyle = tileBlink ? "#7fd08a" : "#2f5d9e";
+          ctx.fillRect(x0 + 6, y0 + 8, 8, 2);
+        }
+      }
+    }
+
+    // portal (PROC PRINT)
+    if (portal) {
+      ctx.fillStyle = "#7C4DFF";
+      ctx.fillRect(portal.x, portal.y, portal.w, portal.h);
+      ctx.fillStyle = "#fff";
+      ctx.font = "10px monospace";
+      ctx.fillText("PRINT", portal.x - 6, portal.y - 6);
+    }
+
+    // ampersands (glyph centred on the tile, so the collect burst matches)
+    ctx.fillStyle = "#ffd54d";
+    ctx.font = "bold 20px monospace";
+    ctx.textAlign = "center";
+    amps.forEach(function (a) {
+      if (!a.taken) ctx.fillText("&", a.x + a.w / 2, a.y + 16);
+    });
+    ctx.textAlign = "left";
+
+    // format mushrooms
+    shrooms.forEach(function (s) {
+      if (s.taken) return;
+      ctx.fillStyle = "#d32f2f";
+      ctx.fillRect(s.x, s.y, s.w, s.h * 0.6);
+      ctx.fillStyle = "#ffe0b2";
+      ctx.fillRect(s.x + s.w * 0.3, s.y + s.h * 0.6, s.w * 0.4, s.h * 0.4);
+      ctx.fillStyle = "#fff";
+      ctx.font = "8px monospace";
+      ctx.fillText("10.2", s.x + 2, s.y + 12);
+    });
+
+    // enemies: ERROR (red) / WARNING (amber) / ABORT (dark magenta, fast)
+    enemies.forEach(function (e) {
+      if (e.dead) return;
+      ctx.fillStyle = e.type === "E" ? "#e53935" : e.type === "A" ? "#880e4f" : "#ffb300";
+      ctx.fillRect(e.x, e.y, e.w, e.h);
+      ctx.fillStyle = e.type === "A" ? "#fff" : "#000";
+      ctx.font = e.type === "A" ? "bold 7px monospace" : "bold 9px monospace";
+      ctx.fillText(e.type === "E" ? "ERR" : e.type === "A" ? "ABORT" : "WARN",
+        e.x - 1, e.y + 12);
+    });
+
+    // player: pixelated SAS running man, blinking on iframes
+    if (!(player.iframes > 0 && Math.floor(player.iframes / 4) % 2)) {
+      var running = Math.abs(player.vx) > 5;
+      var cycle = running ? [2, 3] : [0, 1];
+      var frameIdx = player.moving
+        ? cycle[Math.floor(player.animTick / (running ? 14 : 10)) % 2]
+        : 0;
+      drawSprite(RUNNER[frameIdx], player.x, player.y, player.w, player.h,
+                 player.dir < 0, state === "dying" ? "#b71c1c" : "#ffffff");
+    }
+
+    // particles are stored in WORLD coordinates - draw them before the
+    // camera restore, or they drift right by the camera offset
+    drawParts();
+
+    ctx.restore();
+
+    // HUD: log status bar
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, eng.viewWidth, 24);
+    ctx.fillStyle = "#333";
+    ctx.fillRect(4, 4, eng.viewWidth - 8, 16);
+    ctx.fillStyle = player.health > 50 ? "#43a047" : player.health > 20 ? "#ffb300" : "#e53935";
+    ctx.fillRect(4, 4, (eng.viewWidth - 8) * (player.health / 100), 16);
+    ctx.fillStyle = "#fff";
+    ctx.font = "12px monospace";
+    // live ERROR / WARNING counts for this level, reduced as you stomp them
+    var liveE = 0, liveW = 0, liveA = 0;
+    enemies.forEach(function (e) {
+      if (e.dead) return;
+      if (e.type === "E") liveE++; else if (e.type === "W") liveW++; else liveA++;
+    });
+    var hud = "LOG: ERRORS=" + liveE + " WARNINGS=" + liveW +
+              (liveA ? " ABORTS=" + liveA : "") +
+              "   & x" + player.amps + "   TIME " + elapsed() + "s   " +
+              (audio.state() === "running" ? "(sound on)" : "(SOUND " + audio.state().toUpperCase() + " - click canvas)");
+    if (player.boost > 0) hud += "   [FORMAT 10.2: " + Math.ceil(player.boost / 60) + "s]";
+    ctx.fillText(hud, 10, 17);
+
+    // portal refusal: an ABORT is still outstanding
+    if (gateMsg > 0) {
+      gateMsg--;
+      ctx.fillStyle = Math.floor(gateMsg / 8) % 2 ? "#e53935" : "#fff";
+      ctx.font = "bold 16px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("ERROR: ABORT outstanding - kill it before the job can complete",
+        eng.viewWidth / 2, 60);
+      ctx.textAlign = "left";
+    }
+
+    // level-name banner, first ~3s of play
+    if (state === "play" && bannerT > 0) {
+      bannerT--;
+      ctx.globalAlpha = Math.min(1, bannerT / 40);
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillRect(0, 60, eng.viewWidth, 60);
+      ctx.fillStyle = "#4da3ff";
+      ctx.font = "bold 22px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("LEVEL " + (levelIdx + 1) + ": " + (LEVEL_NAMES[levelIdx] || ""),
+        eng.viewWidth / 2, 96);
+      ctx.textAlign = "left";
+      ctx.globalAlpha = 1;
+    }
+
+    if (state === "dead") {
+      var dsc = resolveScore();
+      overlay("ERROR: Job aborted.",
+        "& x" + dsc.raw + " -> " + dsc.resolved + " resolved (" + dsc.passes +
+        " passes)  TIME " + elapsed() + "s  SCORE " + dsc.score +
+        (player.newRecord ? "  *** NEW RECORD ***" : "") +
+        "  [ENTER / RUN to resubmit]");
+    } else if (state === "winname") {
+      overlay(runEnd === "dead" ? "ERROR: Job aborted." : "NOTE: PROC PRINT completed.",
+        "ENTER YOUR INITIALS: " + initials + (Math.floor(Date.now() / 500) % 2 ? "_" : " ") +
+        "   [ENTER saves, ESC skips]");
+    } else if (state === "win") {
+      var sc = resolveScore();
+      var best = loadBest();
+      var line2 = "RUNNING TOTAL:  & x" + sc.raw + " -> " + sc.resolved +
+        " resolved (" + sc.passes + " passes)  TIME " + elapsed() + "s  SCORE " + sc.score;
+      if (best) line2 += "  (BEST " + best.score + ")";
+      if (playerRank) line2 += "  RANK #" + playerRank;
+      var prompt = levelIdx + 1 < LEVELS.length
+        ? "[ENTER / RUN for Level " + (levelIdx + 2) + ": " +
+          (LEVEL_NAMES[levelIdx + 1] || "") + "]"
+        : "[ENTER / RUN]";
+      overlay("NOTE: PROC PRINT completed.", line2, prompt);
+    }
+  }
+
+  /* centered overlay with up to 3 lines; each line auto-shrinks until it
+     fits the view width (long win stats used to spill off both edges) */
+  function fitText(text, y, weight, px) {
+    while (px > 8) {
+      ctx.font = weight + px + "px monospace";
+      if (ctx.measureText(text).width <= eng.viewWidth - 40) break;
+      px--;
+    }
+    ctx.fillText(text, eng.viewWidth / 2, y);
+  }
+
+  function overlay(line1, line2, line3) {
+    var h = line3 ? 110 : 80;
+    var cy = eng.worldHeight / 2;
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
+    ctx.fillRect(0, cy - h / 2, eng.viewWidth, h);
+    ctx.textAlign = "center";
+    ctx.fillStyle = state === "dead" ? "#e53935" : "#43a047";
+    fitText(line1, cy - (line3 ? 28 : 5), "bold ", 20);
+    ctx.fillStyle = "#fff";
+    fitText(line2, cy + (line3 ? 2 : 22), "", 14);
+    if (line3) {
+      ctx.fillStyle = "#8aa8d8";
+      fitText(line3, cy + 30, "", 14);
+    }
+    ctx.textAlign = "left";
+  }
+
+  // Esc pauses/resumes (clock excludes paused time, music stops while paused)
+  document.addEventListener("keydown", function (e) {
+    if (e.code !== "Escape" || e.repeat) return;
+    if (state === "play") {
+      state = "pause";
+      player.pauseT = performance.now();
+      audio.stopMusic();
+    } else if (state === "pause") {
+      state = "play";
+      player.startT += performance.now() - player.pauseT;
+      audio.startMusic();
+    }
+  });
+
+  // title -> play, and restart after death/win, on a fresh Enter/R press
+  // (e.repeat guards against keys still held from gameplay)
+  var bannerT = 0; // frames remaining for the level-name banner
+
+  function startPlay(newRun) {
+    audio.unlock();
+    init(newRun);
+    parts = [];
+    bannerT = 180; // ~3s
+    state = "play";
+    audio.startMusic();
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e._sbHandled) return; // consumed by the text-entry handler
+    if (e.repeat || !(e.code === "Enter" || e.code === "KeyR")) return;
+    if (state === "title") {
+      levelIdx = 0; level = LEVELS[levelIdx]; eng.setLevel(level);
+      startPlay(true); // fresh run from level 1
+    } else if (state === "dead") {
+      levelIdx = 0; level = LEVELS[levelIdx]; eng.setLevel(level);
+      startPlay(true); // death ends the run - start again from level 1
+    } else if (state === "win") {
+      levelIdx++; level = LEVELS[levelIdx]; eng.setLevel(level);
+      startPlay(false); // next level, same run (score/health/clock carry)
+    } else if (state === "complete") {
+      state = "board"; boardT = 0; // skip the rest of the animation
+    } else if (state === "board") {
+      state = "title";
+    }
+  });
+
+  // ---- main loop ----
+  function frame() {
+    if (state !== "pause") {
+      update();
+      updateParts();
+      draw();
+      // (particles draw inside draw(), under the camera transform)
+    }
+    if (state === "pause") {
+      overlay("NOTE: Job suspended.", "press ESC to resume");
+    }
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
