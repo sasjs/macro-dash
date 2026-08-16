@@ -476,7 +476,7 @@
 
       var final = levelIdx + 1 >= LEVELS.length;
       runEnd = final ? "complete" : "win";
-      if (final) finalizeRun(); // mid-level portals don't score
+      if (final) finalizeRun(); // only a completed run records a time
       // backend leaderboard: collect initials first (finale waits)
       if (final && backendOn) { initials = ""; state = "winname"; }
       else {
@@ -559,9 +559,10 @@
     }
   }
 
-  /* wrap up a run that ended in death */
+  /* wrap up a run that ended in death.  No time is recorded - only
+   * completed runs (final portal reached) earn a place on the board. */
   function endRun() {
-    finalizeRun(); // the score counts at the point you die
+    player.newRecord = false;
     runEnd = "dead";
     if (backendOn) { initials = ""; state = "winname"; }
     else state = "dead";
