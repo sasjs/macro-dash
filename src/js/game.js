@@ -565,8 +565,7 @@
   function endRun() {
     player.newRecord = false;
     runEnd = "dead";
-    if (backendOn) { initials = ""; state = "winname"; }
-    else state = "dead";
+    state = "dead"; // DNF - no initials, no leaderboard submission
   }
 
   function elapsed() {
