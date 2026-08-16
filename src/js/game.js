@@ -495,11 +495,12 @@
   var runEnd = null;
   var levelTimes = []; // per-level seconds for the current run
 
-  /* record a run at its end (death or final portal).  Best = fastest
-   * time - the log must be clean to finish, so time is all that counts. */
+  /* record a run at the final portal.  Best = fastest time - the log
+   * must be clean to finish, so time is all that counts.  Deaths are
+   * DNF and never recorded. */
   function finalizeRun() {
     var entry = { time: parseFloat(elapsed()), lvl: levelTimes.slice(),
-                  when: Date.now() };
+                  done: true, when: Date.now() };
     var prev = loadBest();
     player.newRecord = !prev || entry.time < prev.time;
     saveRun(entry);
@@ -585,7 +586,10 @@
       if (!raw) return [];
       var v = JSON.parse(raw);
       if (!Array.isArray(v)) v = [v]; // migrate the old single-best format
-      return v;
+      // deaths are DNF: only completed runs (flagged done) count.  Entries
+      // recorded before the DNF rule have errs/warns or score fields - the
+      // cleanest interpretation is: keep only entries explicitly flagged
+      return v.filter(function (b) { return b && b.done; });
     } catch (e) { return []; }
   }
 
