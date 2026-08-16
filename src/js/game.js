@@ -469,10 +469,9 @@
       audio.stopMusic();
       audio.win();
 
-      // per-level leaderboard: record this level's time, keep the best
-      var lt = parseFloat(((player.endT - player.levelStartT) / 1000).toFixed(1));
-      levelTimes[levelIdx] = lt;
-      player.levelBest = saveLevelBest(levelIdx, lt);
+      // record this level's time (shown as a stat on the win/finale screens)
+      levelTimes[levelIdx] =
+        parseFloat(((player.endT - player.levelStartT) / 1000).toFixed(1));
 
       var final = levelIdx + 1 >= LEVELS.length;
       runEnd = final ? "complete" : "win";
@@ -601,26 +600,6 @@
 
   var BEST_MAX = 10;
 
-  // ---- per-level leaderboard (fastest time per level, localStorage) ----
-  var LVL_KEY = "macrodash_lvlbest";
-
-  function loadLevelBests() {
-    try {
-      var v = JSON.parse(localStorage.getItem(LVL_KEY) || "[]");
-      return Array.isArray(v) ? v : [];
-    } catch (e) { return []; }
-  }
-
-  /* record a level time; returns { best: entry|null, isRecord: bool } */
-  function saveLevelBest(i, t) {
-    var arr = loadLevelBests();
-    var isRecord = !arr[i] || t < arr[i].time;
-    if (isRecord) {
-      arr[i] = { time: t, when: Date.now() };
-      try { localStorage.setItem(LVL_KEY, JSON.stringify(arr)); } catch (e) {}
-    }
-    return { best: arr[i], isRecord: isRecord };
-  }
   function saveRun(b) {
     try {
       localStorage.setItem(BEST_KEY,
@@ -852,21 +831,7 @@
     ctx.font = "14px monospace";
     ctx.fillText("MACRO DASH - FINAL RESULTS", W / 2, 110);
 
-    // per-level leaderboard (fastest time per level)
-    var lvlBests = loadLevelBests();
-    ctx.font = "13px monospace";
-    var ly2 = 132;
-    for (var li = 0; li < LEVELS.length; li++) {
-      var lbest = lvlBests[li];
-      ctx.fillStyle = lbest ? "#ffd54d" : "#44597a";
-      var lrow = "LEVEL " + (li + 1) + " (" + (LEVEL_NAMES[li] || "") + "):  " +
-        (lbest ? lbest.time.toFixed(1) + "s" +
-          (fmtWhen(lbest) ? "  " + fmtWhen(lbest) : "") : "not finished yet");
-      ctx.fillText(lrow, W / 2, ly2);
-      ly2 += 18;
-    }
-
-    var y = ly2 + 16;
+    var y = 155;
     if (backendOn && leaderboard.length) {
       ctx.fillStyle = "#8aa8d8";
       ctx.font = "13px monospace";
@@ -889,7 +854,7 @@
       ctx.fillText(backendOn ? "no scores yet - be the first!"
         : "personal bests (local only)", W / 2, y);
       y += 30;
-      y = drawBestHistory(W, y, BEST_MAX - 2); // 8 rows fit under the level leaderboard
+      y = drawBestHistory(W, y, BEST_MAX);
       y += 30;
       ctx.fillStyle = "#dbe7ff";
       ctx.font = "16px monospace";
@@ -1170,10 +1135,7 @@
         "   [ENTER saves, ESC skips]");
     } else if (state === "win") {
       var best = loadBest();
-      var lb = player.levelBest;
       var line2 = "LEVEL TIME " + levelTimes[levelIdx].toFixed(1) + "s" +
-        (lb && lb.isRecord ? "  *** NEW LEVEL BEST ***"
-          : lb && lb.best ? "  (BEST " + lb.best.time.toFixed(1) + "s)" : "") +
         "   RUNNING TOTAL " + elapsed() + "s";
       if (best) line2 += "  (BEST " + best.time.toFixed(1) + "s)";
       if (playerRank) line2 += "  RANK #" + playerRank;
