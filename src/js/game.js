@@ -55,7 +55,9 @@
       player = { x: sx, y: sy, w: TILE - 6, h: TILE - 2, vx: 0, vy: 0,
                  big: false, boost: 0, health: 100, amps: 0,
                  errs: 0, warns: 0, iframes: 0, dir: 1,
-                 startT: performance.now(), endT: 0 };
+                 startT: performance.now(), endT: 0,
+                 levelStartT: performance.now() };
+    levelTimes = [];
     } else {
       // next level, same run: keep score/health/clock, reset position
       if (player.big) shrink();
@@ -63,6 +65,7 @@
       player.x = sx; player.y = sy; player.vx = 0; player.vy = 0;
       player.iframes = 90; // brief protection on level entry
       player.endT = 0;
+      player.levelStartT = performance.now();
     }
   }
   init(true);
@@ -460,6 +463,11 @@
       audio.stopMusic();
       audio.win();
 
+      // per-level leaderboard: record this level's time, keep the best
+      var lt = parseFloat(((player.endT - player.levelStartT) / 1000).toFixed(1));
+      levelTimes[levelIdx] = lt;
+      player.levelBest = saveLevelBest(levelIdx, lt);
+
       var final = levelIdx + 1 >= LEVELS.length;
       runEnd = final ? "complete" : "win";
       if (final) finalizeRun(); // mid-level portals don't score
@@ -478,12 +486,15 @@
   /* where to go after the initials screen: dead (job aborted), win (next
    * level) or complete (finale) */
   var runEnd = null;
+  var levelTimes = []; // per-level seconds for the current run
 
   /* score a run at its end (death or final portal).  Best = highest score;
    * fastest time breaks ties. */
   function finalizeRun() {
     var sc = resolveScore();
-    var entry = { time: parseFloat(elapsed()), score: sc.score, amps: player.amps, when: Date.now() };
+    var entry = { time: parseFloat(elapsed()), score: sc.score, amps: player.amps,
+                  errs: player.errs, warns: player.warns,
+                  lvl: levelTimes.slice(), when: Date.now() };
     var prev = loadBest();
     player.newRecord = !prev || entry.score > prev.score ||
       (entry.score === prev.score && entry.time < prev.time);
@@ -583,6 +594,27 @@
   }
 
   var BEST_MAX = 10;
+
+  // ---- per-level leaderboard (fastest time per level, localStorage) ----
+  var LVL_KEY = "macrodash_lvlbest";
+
+  function loadLevelBests() {
+    try {
+      var v = JSON.parse(localStorage.getItem(LVL_KEY) || "[]");
+      return Array.isArray(v) ? v : [];
+    } catch (e) { return []; }
+  }
+
+  /* record a level time; returns { best: entry|null, isRecord: bool } */
+  function saveLevelBest(i, t) {
+    var arr = loadLevelBests();
+    var isRecord = !arr[i] || t < arr[i].time;
+    if (isRecord) {
+      arr[i] = { time: t, when: Date.now() };
+      try { localStorage.setItem(LVL_KEY, JSON.stringify(arr)); } catch (e) {}
+    }
+    return { best: arr[i], isRecord: isRecord };
+  }
   function saveRun(b) {
     try {
       localStorage.setItem(BEST_KEY,
@@ -615,7 +647,8 @@
     all.slice(0, max).forEach(function (b, i) {
       var when = fmtWhen(b);
       var row = b.time.toFixed(1) + "s  (score " + b.score + ", & x" +
-        b.amps + ")" + (when ? "  " + when : "");
+        b.amps + ", E" + (b.errs || 0) + " W" + (b.warns || 0) + ")" +
+        (when ? "  " + when : "");
       ctx.fillStyle = i === 0 ? "#ffd54d" : "#dbe7ff";
       ctx.font = (i === 0 ? "bold " : "") + "14px monospace";
       ctx.fillText((i === 0 ? "BEST  " : "      ") + row, W / 2, y);
@@ -820,7 +853,21 @@
     ctx.font = "14px monospace";
     ctx.fillText("MACRO DASH - FINAL RESULTS", W / 2, 110);
 
-    var y = 155;
+    // per-level leaderboard (fastest time per level)
+    var lvlBests = loadLevelBests();
+    ctx.font = "13px monospace";
+    var ly2 = 132;
+    for (var li = 0; li < LEVELS.length; li++) {
+      var lbest = lvlBests[li];
+      ctx.fillStyle = lbest ? "#ffd54d" : "#44597a";
+      var lrow = "LEVEL " + (li + 1) + " (" + (LEVEL_NAMES[li] || "") + "):  " +
+        (lbest ? lbest.time.toFixed(1) + "s" +
+          (fmtWhen(lbest) ? "  " + fmtWhen(lbest) : "") : "not finished yet");
+      ctx.fillText(lrow, W / 2, ly2);
+      ly2 += 18;
+    }
+
+    var y = ly2 + 16;
     if (backendOn && leaderboard.length) {
       ctx.fillStyle = "#8aa8d8";
       ctx.font = "13px monospace";
@@ -845,7 +892,7 @@
       ctx.fillText(backendOn ? "no scores yet - be the first!"
         : "personal bests (local only)", W / 2, y);
       y += 30;
-      y = drawBestHistory(W, y, BEST_MAX);
+      y = drawBestHistory(W, y, BEST_MAX - 2); // 8 rows fit under the level leaderboard
       var sc = resolveScore();
       y += 30;
       ctx.fillStyle = "#dbe7ff";
@@ -1135,7 +1182,11 @@
     } else if (state === "win") {
       var sc = resolveScore();
       var best = loadBest();
-      var line2 = "RUNNING TOTAL:  & x" + sc.raw + " -> " + sc.resolved +
+      var lb = player.levelBest;
+      var line2 = "LEVEL TIME " + levelTimes[levelIdx].toFixed(1) + "s" +
+        (lb && lb.isRecord ? "  *** NEW LEVEL BEST ***"
+          : lb && lb.best ? "  (BEST " + lb.best.time.toFixed(1) + "s)" : "") +
+        "   RUNNING TOTAL:  & x" + sc.raw + " -> " + sc.resolved +
         " resolved (" + sc.passes + " passes)  TIME " + elapsed() + "s  SCORE " + sc.score;
       if (best) line2 += "  (BEST " + best.score + ")";
       if (playerRank) line2 += "  RANK #" + playerRank;
@@ -1185,6 +1236,7 @@
     } else if (state === "pause") {
       state = "play";
       player.startT += performance.now() - player.pauseT;
+      player.levelStartT += performance.now() - player.pauseT;
       audio.startMusic();
     }
   });
