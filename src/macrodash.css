@@ -155,3 +155,22 @@ sasjs {
   color: #8aa8d8;
   font-size: 0.9em;
 }
+
+#credits {
+  color: #8aa8d8;
+  font-size: 0.85em;
+  margin-top: 1em;
+}
+
+#credits a {
+  color: #9fc2ff;
+  text-decoration: none;
+}
+
+#credits a:hover {
+  text-decoration: underline;
+}
+
+#credits .sep {
+  margin: 0 0.6em;
+}
