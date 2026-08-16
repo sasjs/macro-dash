@@ -487,7 +487,7 @@
     var prev = loadBest();
     player.newRecord = !prev || entry.score > prev.score ||
       (entry.score === prev.score && entry.time < prev.time);
-    if (player.newRecord) saveBest(entry);
+    saveRun(entry);
   }
 
   // ---- finale: "completed" animation -> high score board ----
@@ -558,8 +558,9 @@
   }
 
   // ---- persistent bests (localStorage; same-origin => CSP-safe) ----
-  // every new personal best is APPENDED (a run spans all levels; the score
-  // counts at the end), so the finish pages can show the full history
+  // every finished run is APPENDED (a run spans all levels; the score
+  // counts at the end) and the list is capped at the last 10, so the
+  // finish pages can show the full recent history
   var BEST_KEY = "macrodash_best";
 
   function loadBests() {
@@ -581,8 +582,12 @@
     });
   }
 
-  function saveBest(b) {
-    try { localStorage.setItem(BEST_KEY, JSON.stringify(loadBests().concat(b))); } catch (e) {}
+  var BEST_MAX = 10;
+  function saveRun(b) {
+    try {
+      localStorage.setItem(BEST_KEY,
+        JSON.stringify(loadBests().concat(b).slice(-BEST_MAX)));
+    } catch (e) {}
   }
 
   /* DDMMMYY hh:mm (SAS DATE7.-style date, e.g. 04JUL26 14:32) for a stored
@@ -840,7 +845,7 @@
       ctx.fillText(backendOn ? "no scores yet - be the first!"
         : "personal bests (local only)", W / 2, y);
       y += 30;
-      y = drawBestHistory(W, y, 5);
+      y = drawBestHistory(W, y, BEST_MAX);
       var sc = resolveScore();
       y += 30;
       ctx.fillStyle = "#dbe7ff";
