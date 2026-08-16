@@ -10,12 +10,13 @@ Hard-won design decisions and platform learnings. Read this before changing the 
   - no `eval` / CDN / external fonts
   - (this also means test pages that inject inline scripts must strip the CSP meta tag — it really works)
 - `js/engine.js` is renderer-agnostic (tilemap, AABB physics, camera); levels are swapped with `eng.setLevel(rows)` (canvas height derives from row count).
-- `test/reachability.js` loads the REAL level + engine via a DOM shim and BFS-explores the physics: every `&` and the portal must be reachable with the FORMAT boost, and `&` at row ≤ 5 must be UNREACHABLE without it. Run `npm test` after ANY level or physics change. Note: it cannot detect an unstompable ABORT (portal gate) — keep ABORTs on open floor/platforms.
+- `test/reachability.js` loads the REAL level + engine via a DOM shim and BFS-explores the physics: every `&` and the portal must be reachable with the FORMAT boost, and `&` at row ≤ 5 must be UNREACHABLE without it. Run `npm test` after ANY level or physics change. Note: it cannot detect an unstompable enemy (the portal gate requires ALL of them dead) — keep enemies on open floor/platforms.
 
 ## Game design rules
 
-- A game is ONE RUN across all levels: amps, health, error/warning counts and the speedrun clock carry over; `init(true)` = new run, `init(false)` = next level. The score is finalised ONLY at death or the final portal (`finalizeRun()`); mid-level portals show a running total.
-- Touching an ABORT ends the job instantly (100 damage). Stomping one heals +25 health. The portal refuses while an ABORT lives in the level ("ERROR: ABORT outstanding").
+- A game is ONE RUN across all levels: health and the speedrun clock carry over; `init(true)` = new run, `init(false)` = next level. The run is recorded ONLY at death or the final portal (`finalizeRun()`); mid-level portals show the running time. Leaderboards are TIME-ONLY (no score): every finished run must have a clean log, so fastest time wins. Per-level fastest times are kept in `macrodash_lvlbest`, the last 10 runs in `macrodash_best`.
+- Ampersands (`&`) are pure health pickups (+15 health); they carry no score.
+- Touching an ABORT ends the job instantly (100 damage). Stomping one heals +25 health. The portal refuses while ANY enemy (ERROR/WARNING/ABORT) lives in the level ("ERROR: log not clean").
 - HUD counts live REMAINING ERROR/WARNING enemies per level (counts down as you stomp); hits taken are tracked separately for the finale stamp.
 - Player sprite (SAS running man) is white; title/finale runners too.
 - On-screen controls (`js/controls.js`): RUN button doubles as ENTER on every non-play state (title/dead/win/winname/config/complete/board) — keep the inverted state check (`s !== "play" && s !== "pause"`), NOT an allowlist. Canvas tap = ENTER on non-play screens (mobile). Buttons release on mouseup/mouseleave/touchend/blur so they never stick.

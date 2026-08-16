@@ -53,7 +53,7 @@
     }
     if (newRun || !player) {
       player = { x: sx, y: sy, w: TILE - 6, h: TILE - 2, vx: 0, vy: 0,
-                 big: false, boost: 0, health: 100, amps: 0,
+                 big: false, boost: 0, health: 100,
                  errs: 0, warns: 0, iframes: 0, dir: 1,
                  startT: performance.now(), endT: 0,
                  levelStartT: performance.now() };
@@ -282,8 +282,7 @@
         e._sbHandled = true; // don't let the restart handler see this Enter
         if (initials.length > 0) {
           backend.saveScore({
-            name: initials, time: elapsed(), score: resolveScore().score,
-            amps: player.amps
+            name: initials, time: elapsed(), score: 0, amps: 0
           }, function (res) {
             if (res) { leaderboard = res.scores; playerRank = res.rank; }
           });
@@ -371,11 +370,12 @@
     // fell out of the world
     if (player.y > eng.worldHeight + 64) { damage(100, "E"); }
 
-    // ampersands: +5 health each (macro food)
+    // ampersands: pure macro food (+15 health each) - no score, the
+    // leaderboard is measured on time only
     amps.forEach(function (a) {
       if (!a.taken && eng.overlap(player, a)) {
-        a.taken = true; player.amps++; audio.collect();
-        player.health = Math.min(100, player.health + 5);
+        a.taken = true; audio.collect();
+        player.health = Math.min(100, player.health + 15);
         burst(a.x + a.w / 2, a.y + a.h / 2, "#ffd54d", 10);
       }
     });
@@ -446,13 +446,19 @@
       }
     });
 
-    // portal - blocked while an ABORT is still outstanding
+    // portal - blocked until the log is clean (every ERROR, WARNING and
+    // ABORT stomped); the job cannot complete with anything outstanding
     if (portal && eng.overlap(player, portal)) {
-      var abortsLeft = enemies.filter(function (e) {
-        return e.type === "A" && !e.dead;
-      }).length;
-      if (abortsLeft > 0) {
+      var leftE = 0, leftW = 0, leftA = 0;
+      enemies.forEach(function (e) {
+        if (e.dead) return;
+        if (e.type === "E") leftE++; else if (e.type === "W") leftW++; else leftA++;
+      });
+      if (leftE + leftW + leftA > 0) {
         gateMsg = 90; // frames to show the refusal
+        gateDetail = (leftE ? " ERRORS=" + leftE : "") +
+                     (leftW ? " WARNINGS=" + leftW : "") +
+                     (leftA ? " ABORTS=" + leftA : "");
         audio.hurt();
         player.vx = -player.dir * 4; // bounce the runner back
       } else {
@@ -481,23 +487,21 @@
     }
   }
 
-  var gateMsg = 0; // frames remaining for the "ABORT outstanding" refusal
+  var gateMsg = 0; // frames remaining for the portal refusal
+  var gateDetail = ""; // outstanding enemy counts for the refusal message
 
   /* where to go after the initials screen: dead (job aborted), win (next
    * level) or complete (finale) */
   var runEnd = null;
   var levelTimes = []; // per-level seconds for the current run
 
-  /* score a run at its end (death or final portal).  Best = highest score;
-   * fastest time breaks ties. */
+  /* record a run at its end (death or final portal).  Best = fastest
+   * time - the log must be clean to finish, so time is all that counts. */
   function finalizeRun() {
-    var sc = resolveScore();
-    var entry = { time: parseFloat(elapsed()), score: sc.score, amps: player.amps,
-                  errs: player.errs, warns: player.warns,
-                  lvl: levelTimes.slice(), when: Date.now() };
+    var entry = { time: parseFloat(elapsed()), lvl: levelTimes.slice(),
+                  when: Date.now() };
     var prev = loadBest();
-    player.newRecord = !prev || entry.score > prev.score ||
-      (entry.score === prev.score && entry.time < prev.time);
+    player.newRecord = !prev || entry.time < prev.time;
     saveRun(entry);
   }
 
@@ -587,10 +591,8 @@
   function loadBest() {
     var all = loadBests();
     if (!all.length) return null;
-    // best = highest score; fastest time breaks ties
-    return all.reduce(function (a, b) {
-      return b.score > a.score || (b.score === a.score && b.time < a.time) ? b : a;
-    });
+    // best = fastest time (older entries with scores rank by score below)
+    return all.reduce(function (a, b) { return b.time < a.time ? b : a; });
   }
 
   var BEST_MAX = 10;
@@ -646,26 +648,18 @@
     }
     all.slice(0, max).forEach(function (b, i) {
       var when = fmtWhen(b);
-      var row = b.time.toFixed(1) + "s  (score " + b.score + ", & x" +
-        b.amps + ", E" + (b.errs || 0) + " W" + (b.warns || 0) + ")" +
-        (when ? "  " + when : "");
-      ctx.fillStyle = i === 0 ? "#ffd54d" : "#dbe7ff";
-      ctx.font = (i === 0 ? "bold " : "") + "14px monospace";
-      ctx.fillText((i === 0 ? "BEST  " : "      ") + row, W / 2, y);
+      var row = b.time.toFixed(1) + "s" + (when ? "  " + when : "");
+      var best = loadBest();
+      var isBest = best && best.time === b.time && best.when === b.when;
+      ctx.fillStyle = isBest ? "#ffd54d" : "#dbe7ff";
+      ctx.font = (isBest ? "bold " : "") + "14px monospace";
+      ctx.fillText((isBest ? "BEST  " : "      ") + row, W / 2, y);
       y += 20;
     });
     return y - 20;
   }
 
-  // macro resolution score: && -> & resolution passes
-  function resolveScore() {
-    var s = "";
-    for (var i = 0; i < player.amps; i++) s += "&";
-    var passes = 0, out = s;
-    while (out.indexOf("&&") >= 0) { out = out.replace(/&&/g, "&"); passes++; }
-    return { raw: player.amps, resolved: out.length, passes: passes,
-             score: player.amps * 100 + passes * 250 };
-  }
+
 
   // ---- render ----
   function drawTitle() {
@@ -689,7 +683,7 @@
     ctx.font = "14px monospace";
     ctx.fillText("You are the DATA stepper.", eng.viewWidth / 2, 290);
     ctx.fillText("Eliminate ERRORs and WARNINGs.", eng.viewWidth / 2, 312);
-    ctx.fillText("Collect ampersands.", eng.viewWidth / 2, 334);
+    ctx.fillText("Grab ampersands for health - fastest clean run wins.", eng.viewWidth / 2, 334);
     ctx.fillText("Grab the FORMAT 10.2 mushroom for super jumps.", eng.viewWidth / 2, 356);
 
     ctx.fillStyle = "#8aa8d8";
@@ -703,8 +697,7 @@
     if (best) {
       ctx.fillStyle = "#ffd54d";
       var bestWhen = fmtWhen(best);
-      ctx.fillText("PERSONAL BEST: " + best.time.toFixed(1) + "s  (score " +
-        best.score + ", & x" + best.amps + ")" +
+      ctx.fillText("PERSONAL BEST: " + best.time.toFixed(1) + "s" +
         (bestWhen ? "  on " + bestWhen : ""), eng.viewWidth / 2, y0);
       y0 += 22;
     }
@@ -716,8 +709,8 @@
       // with the ENTER prompt below (canvas bottom is 480)
       leaderboard.slice(0, best ? 2 : 3).forEach(function (s, i) {
         y0 += 16;
-        ctx.fillText((i + 1) + ". " + s.NAME + "  " + s.TIME.toFixed(1) + "s  (" +
-          s.SCORE + ")", eng.viewWidth / 2, y0);
+        ctx.fillText((i + 1) + ". " + s.NAME + "  " + s.TIME.toFixed(1) + "s",
+          eng.viewWidth / 2, y0);
       });
     } else if (!backendOn) {
       ctx.fillStyle = "#8aa8d8";
@@ -803,12 +796,14 @@
     }
 
     // stats count in one by one
-    var sc = resolveScore();
     var stats = [
       "NOTE: PROC PRINT completed - report teleported to HQ (Cary, NC).",
-      "& x" + sc.raw + " -> " + sc.resolved + " resolved (" + sc.passes + " passes)",
-      "TIME " + elapsed() + "s   SCORE " + sc.score +
-        (player.newRecord ? "   *** NEW RECORD ***" : "")
+      "NOTE: Log is clean - every ERROR, WARNING and ABORT was stomped.",
+      "TIME " + elapsed() + "s" +
+        (player.newRecord ? "   *** NEW RECORD ***" : "") +
+        "   (" + levelTimes.map(function (t, i) {
+          return "L" + (i + 1) + " " + t.toFixed(1) + "s";
+        }).join("  ") + ")"
     ];
     ctx.font = "16px monospace";
     stats.forEach(function (s, i) {
@@ -871,7 +866,7 @@
     if (backendOn && leaderboard.length) {
       ctx.fillStyle = "#8aa8d8";
       ctx.font = "13px monospace";
-      ctx.fillText("RANK   NAME           TIME       SCORE", W / 2, y);
+      ctx.fillText("RANK   NAME           TIME", W / 2, y);
       y += 14;
       leaderboard.slice(0, 8).forEach(function (s, i) {
         y += 24;
@@ -881,8 +876,6 @@
         var row = (i + 1) + ".      " +
           (s.NAME + "            " ).slice(0, 12) + "  " +
           s.TIME.toFixed(1) + "s";
-        while (row.length < 26) row += " ";
-        row += s.SCORE;
         fitText(row, y, me ? "bold " : "", 15);
       });
     } else {
@@ -893,12 +886,10 @@
         : "personal bests (local only)", W / 2, y);
       y += 30;
       y = drawBestHistory(W, y, BEST_MAX - 2); // 8 rows fit under the level leaderboard
-      var sc = resolveScore();
       y += 30;
       ctx.fillStyle = "#dbe7ff";
       ctx.font = "16px monospace";
-      ctx.fillText("THIS RUN:  " + elapsed() + "s  (score " + sc.score +
-        ", & x" + sc.raw + ")", W / 2, y);
+      ctx.fillText("THIS RUN:  " + elapsed() + "s", W / 2, y);
     }
 
     if (Math.floor(Date.now() / 500) % 2) {
@@ -920,12 +911,10 @@
 
     // log dump header
     ctx.textAlign = "left";
-    var sc = resolveScore();
     var lines = [
       { t: "ERROR: Job aborted.  The SAS System stopped processing this job.", c: "#e53935" },
       { t: "NOTE: Dump of the WORK library follows.", c: "#8aa8d8" },
-      { t: "      & x" + sc.raw + " -> " + sc.resolved + " resolved (" + sc.passes + " passes)", c: "#ffd54d" },
-      { t: "      TIME " + elapsed() + "s   SCORE " + sc.score +
+      { t: "      TIME " + elapsed() + "s" +
            (player.newRecord ? "   *** NEW RECORD ***" : ""), c: "#dbe7ff" }
     ];
     if (player.errs > 0 || player.warns > 0) {
@@ -933,7 +922,7 @@
         player.warns + " WARNING", c: "#e57373" });
     }
     ctx.font = "14px monospace";
-    var ly = 70;
+    var ly = 70; // log lines start here
     lines.forEach(function (l, i) {
       var at = i * 20;
       if (boardT === at) audio.collect();
@@ -954,7 +943,7 @@
       if (backendOn && leaderboard.length) {
         ctx.fillStyle = "#8aa8d8";
         ctx.font = "13px monospace";
-        ctx.fillText("RANK   NAME           TIME       SCORE", W / 2, y);
+        ctx.fillText("RANK   NAME           TIME", W / 2, y);
         y += 10;
         leaderboard.slice(0, 5).forEach(function (s, i) {
           y += 22;
@@ -963,8 +952,6 @@
           var row = (i + 1) + ".      " +
             (s.NAME + "            ").slice(0, 12) + "  " +
             s.TIME.toFixed(1) + "s";
-          while (row.length < 26) row += " ";
-          row += s.SCORE;
           fitText(row, y, me ? "bold " : "", 15);
         });
       } else {
@@ -1137,7 +1124,7 @@
     });
     var hud = "LOG: ERRORS=" + liveE + " WARNINGS=" + liveW +
               (liveA ? " ABORTS=" + liveA : "") +
-              "   & x" + player.amps + "   TIME " + elapsed() + "s   " +
+              "   TIME " + elapsed() + "s   " +
               (audio.state() === "running" ? "(sound on)" : "(SOUND " + audio.state().toUpperCase() + " - click canvas)");
     if (player.boost > 0) hud += "   [FORMAT 10.2: " + Math.ceil(player.boost / 60) + "s]";
     ctx.fillText(hud, 10, 17);
@@ -1148,8 +1135,8 @@
       ctx.fillStyle = Math.floor(gateMsg / 8) % 2 ? "#e53935" : "#fff";
       ctx.font = "bold 16px monospace";
       ctx.textAlign = "center";
-      ctx.fillText("ERROR: ABORT outstanding - kill it before the job can complete",
-        eng.viewWidth / 2, 60);
+      ctx.fillText("ERROR: log not clean (" + gateDetail.trim() +
+        ") - the job cannot complete", eng.viewWidth / 2, 60);
       ctx.textAlign = "left";
     }
 
@@ -1169,10 +1156,8 @@
     }
 
     if (state === "dead") {
-      var dsc = resolveScore();
       overlay("ERROR: Job aborted.",
-        "& x" + dsc.raw + " -> " + dsc.resolved + " resolved (" + dsc.passes +
-        " passes)  TIME " + elapsed() + "s  SCORE " + dsc.score +
+        "TIME " + elapsed() + "s" +
         (player.newRecord ? "  *** NEW RECORD ***" : "") +
         "  [ENTER / RUN for the dump]");
     } else if (state === "winname") {
@@ -1180,15 +1165,13 @@
         "ENTER YOUR INITIALS: " + initials + (Math.floor(Date.now() / 500) % 2 ? "_" : " ") +
         "   [ENTER saves, ESC skips]");
     } else if (state === "win") {
-      var sc = resolveScore();
       var best = loadBest();
       var lb = player.levelBest;
       var line2 = "LEVEL TIME " + levelTimes[levelIdx].toFixed(1) + "s" +
         (lb && lb.isRecord ? "  *** NEW LEVEL BEST ***"
           : lb && lb.best ? "  (BEST " + lb.best.time.toFixed(1) + "s)" : "") +
-        "   RUNNING TOTAL:  & x" + sc.raw + " -> " + sc.resolved +
-        " resolved (" + sc.passes + " passes)  TIME " + elapsed() + "s  SCORE " + sc.score;
-      if (best) line2 += "  (BEST " + best.score + ")";
+        "   RUNNING TOTAL " + elapsed() + "s";
+      if (best) line2 += "  (BEST " + best.time.toFixed(1) + "s)";
       if (playerRank) line2 += "  RANK #" + playerRank;
       var prompt = levelIdx + 1 < LEVELS.length
         ? "[ENTER / RUN for Level " + (levelIdx + 2) + ": " +
