@@ -557,29 +557,64 @@
     return ((end - player.startT) / 1000).toFixed(1);
   }
 
-  // ---- persistent best (localStorage; same-origin => CSP-safe) ----
-  // one best per RUN (a run spans all levels; the score counts at the end)
+  // ---- persistent bests (localStorage; same-origin => CSP-safe) ----
+  // every new personal best is APPENDED (a run spans all levels; the score
+  // counts at the end), so the finish pages can show the full history
   var BEST_KEY = "macrodash_best";
 
-  function loadBest() {
+  function loadBests() {
     try {
       var raw = localStorage.getItem(BEST_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) { return null; }
+      if (!raw) return [];
+      var v = JSON.parse(raw);
+      if (!Array.isArray(v)) v = [v]; // migrate the old single-best format
+      return v;
+    } catch (e) { return []; }
+  }
+
+  function loadBest() {
+    var all = loadBests();
+    if (!all.length) return null;
+    // best = highest score; fastest time breaks ties
+    return all.reduce(function (a, b) {
+      return b.score > a.score || (b.score === a.score && b.time < a.time) ? b : a;
+    });
   }
 
   function saveBest(b) {
-    try { localStorage.setItem(BEST_KEY, JSON.stringify(b)); } catch (e) {}
+    try { localStorage.setItem(BEST_KEY, JSON.stringify(loadBests().concat(b))); } catch (e) {}
   }
 
-  /* MM/DD/YY hh:mm (SAS MMDDYY8.-style) for a stored best run; older
+  /* DD/MM/YY hh:mm (SAS DDMMYY8.-style) for a stored best run; older
    * entries may predate the `when` field */
   function fmtWhen(b) {
     if (!b || !b.when) return "";
     var d = new Date(b.when);
     function p(n) { return (n < 10 ? "0" : "") + n; }
-    return p(d.getMonth() + 1) + "/" + p(d.getDate()) + "/" +
+    return p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" +
       String(d.getFullYear()).slice(-2) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+
+  /* shared renderer for the offline personal-best history, newest first.
+   * returns the y of the last row drawn */
+  function drawBestHistory(W, y, max) {
+    var all = loadBests().slice().sort(function (a, b) { return b.when - a.when; });
+    if (!all.length) {
+      ctx.fillStyle = "#44597a";
+      ctx.font = "13px monospace";
+      ctx.fillText("(no finished runs recorded yet)", W / 2, y);
+      return y;
+    }
+    all.slice(0, max).forEach(function (b, i) {
+      var when = fmtWhen(b);
+      var row = b.time.toFixed(1) + "s  (score " + b.score + ", & x" +
+        b.amps + ")" + (when ? "  " + when : "");
+      ctx.fillStyle = i === 0 ? "#ffd54d" : "#dbe7ff";
+      ctx.font = (i === 0 ? "bold " : "") + "14px monospace";
+      ctx.fillText((i === 0 ? "BEST  " : "      ") + row, W / 2, y);
+      y += 20;
+    });
+    return y - 20;
   }
 
   // macro resolution score: && -> & resolution passes
@@ -801,31 +836,15 @@
       ctx.fillStyle = "#8aa8d8";
       ctx.font = "13px monospace";
       ctx.fillText(backendOn ? "no scores yet - be the first!"
-        : "personal best (local only)", W / 2, y);
-      var best = loadBest();
-      y += 36;
+        : "personal bests (local only)", W / 2, y);
+      y += 30;
+      y = drawBestHistory(W, y, 5);
+      var sc = resolveScore();
+      y += 30;
+      ctx.fillStyle = "#dbe7ff";
       ctx.font = "16px monospace";
-      if (best) {
-        ctx.fillStyle = "#ffd54d";
-        ctx.fillText("BEST RUN:  " + best.time.toFixed(1) + "s  (score " +
-          best.score + ", & x" + best.amps + ")", W / 2, y);
-        var when = fmtWhen(best);
-        if (when) {
-          y += 20;
-          ctx.fillStyle = "#8aa8d8";
-          ctx.font = "13px monospace";
-          ctx.fillText("set on " + when, W / 2, y);
-          ctx.font = "16px monospace";
-        }
-        var sc = resolveScore();
-        y += 34;
-        ctx.fillStyle = "#dbe7ff";
-        ctx.fillText("THIS RUN:  " + elapsed() + "s  (score " + sc.score +
-          ", & x" + sc.raw + ")", W / 2, y);
-      } else {
-        ctx.fillStyle = "#44597a";
-        ctx.fillText("(no finished runs recorded yet)", W / 2, y);
-      }
+      ctx.fillText("THIS RUN:  " + elapsed() + "s  (score " + sc.score +
+        ", & x" + sc.raw + ")", W / 2, y);
     }
 
     if (Math.floor(Date.now() / 500) % 2) {
@@ -898,22 +917,9 @@
         ctx.fillStyle = "#8aa8d8";
         ctx.font = "13px monospace";
         ctx.fillText(backendOn ? "no scores yet - be the first!"
-          : "personal best (local only)", W / 2, y);
-        var best = loadBest();
-        if (best) {
-          y += 30;
-          ctx.fillStyle = "#ffd54d";
-          ctx.font = "16px monospace";
-          ctx.fillText("BEST RUN:  " + best.time.toFixed(1) + "s  (score " +
-            best.score + ", & x" + best.amps + ")", W / 2, y);
-          var when = fmtWhen(best);
-          if (when) {
-            y += 20;
-            ctx.fillStyle = "#8aa8d8";
-            ctx.font = "13px monospace";
-            ctx.fillText("set on " + when, W / 2, y);
-          }
-        }
+          : "personal bests (local only)", W / 2, y);
+        y += 26;
+        drawBestHistory(W, y, 4);
       }
     }
 
