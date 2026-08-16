@@ -33,6 +33,12 @@ To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 - `npm test` — reachability test (BFS over engine physics for all levels)
 - `npm run prepare` — refresh `src/sasjs.js` from `node_modules/@sasjs/adapter`
 
+## GitHub Pages (backend-free)
+
+`.github/workflows/pages.yml` deploys the static game on every push to `main`: `npm ci` (regenerates the gitignored `src/sasjs.js`), `npm test`, then publishes `src/`. With no SAS server reachable the game simply runs in localStorage mode (personal best, no leaderboard).
+
+One-time repo setup: Settings → Pages → Source = "GitHub Actions". The game will be at `https://sasjs.github.io/macrodash/`.
+
 ## Deploying to real SAS
 
 Targets `server` (sas.4gl.io), `viya`, `sas9` live in `sasjs/sasjsconfig.json`:
