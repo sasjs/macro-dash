@@ -37,12 +37,12 @@
     },
     {
       "name": "viya",
-      "serverUrl": "",
+      "serverUrl": "https://nextviya.emea.sas.com",
       "serverType": "SASVIYA",
       "httpsAgentOptions": {
         "allowInsecureRequests": false
       },
-      "appLoc": "/Public/app/macrodash",
+      "appLoc": "/Users/viyademo18/macrodash",
       "contextName": "SAS Job Execution compute context"
     },
     {

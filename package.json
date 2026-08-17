@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@sasjs/cli": "^4.17.4",
-    "@sasjs/core": "^5.0.0"
+    "@sasjs/core": "^5.1.0"
   },
   "dependencies": {
     "@sasjs/adapter": "^4.17.3"
