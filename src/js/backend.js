@@ -41,8 +41,12 @@
     if (adapterPromise) return adapterPromise;
     adapterPromise = new Promise(function (resolve) {
       if (window.SASjs) { resolve(true); return; }
+      /* the prefetch link in index.html carries the sasjs.js URL - after a
+         streaming build it is the absolute _FILE=... URL (a relative src
+         would 404 under /SASJobExecution).  Fallback: plain relative. */
+      var link = document.querySelector('link[href$="sasjs.js"]');
       var s = document.createElement("script");
-      s.src = "sasjs.js";
+      s.src = (link && link.getAttribute("href")) || "sasjs.js";
       s.onload = function () { resolve(true); };
       s.onerror = function () { resolve(false); };
       document.head.appendChild(s);
