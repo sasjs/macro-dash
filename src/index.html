@@ -60,12 +60,11 @@
     <span>Made with &#10084;&#65039; by <a href="https://sasapps.io" target="_blank" rel="noopener">4GL Apps</a></span>
   </footer>
 
-  <!-- sasjs.js (adapter bundle) is LAZY-LOADED by js/backend.js on the
-       first backend call - it is big, and a blocking tag here delayed the
-       title screen by seconds.  This prefetch link is low-priority (never
-       blocks rendering) and exists so the streaming build rewrites the
-       href to the absolute _FILE URL, which backend.js then reads. -->
-  <link rel="prefetch" href="sasjs.js" as="script">
+  <!-- sasjs.js (adapter bundle): defer so it downloads in parallel and
+       never blocks the title screen; js/backend.js removes this tag before
+       it executes and lazy-loads it on the first real backend call, using
+       the (build-rewritten, absolute _FILE=...) src. -->
+  <script defer id="sasjs-adapter" src="sasjs.js"></script>
   <script src="js/backend.js"></script>
   <script src="js/level.js"></script>
   <script src="js/audio.js"></script>

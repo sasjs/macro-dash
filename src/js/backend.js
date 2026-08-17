@@ -37,16 +37,19 @@
   var sasjs = null;
   var adapterPromise = null;
 
+  /* the defer'd adapter tag carries the build-rewritten (absolute on Viya
+     JES) URL.  We run during document parsing, before deferred scripts
+     execute - remove it so the bundle only ever loads/executes on demand. */
+  var adapterTag = document.getElementById("sasjs-adapter");
+  var adapterSrc = (adapterTag && adapterTag.getAttribute("src")) || "sasjs.js";
+  if (adapterTag && adapterTag.parentNode) adapterTag.parentNode.removeChild(adapterTag);
+
   function loadAdapter() {
     if (adapterPromise) return adapterPromise;
     adapterPromise = new Promise(function (resolve) {
       if (window.SASjs) { resolve(true); return; }
-      /* the prefetch link in index.html carries the sasjs.js URL - after a
-         streaming build it is the absolute _FILE=... URL (a relative src
-         would 404 under /SASJobExecution).  Fallback: plain relative. */
-      var link = document.querySelector('link[href$="sasjs.js"]');
       var s = document.createElement("script");
-      s.src = (link && link.getAttribute("href")) || "sasjs.js";
+      s.src = adapterSrc;
       s.onload = function () { resolve(true); };
       s.onerror = function () { resolve(false); };
       document.head.appendChild(s);
