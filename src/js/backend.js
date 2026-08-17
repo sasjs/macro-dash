@@ -25,6 +25,11 @@
   var contextName = null;
   try { contextName = localStorage.getItem("macrodash_context"); } catch (e) {}
 
+  /* Viya runAsTask switch (setup screen, persisted; default ON) - the
+     adapter runs jobs with the executionTasks flag and _debug=128 */
+  var runAsTask = true;
+  try { runAsTask = localStorage.getItem("macrodash_runastask") !== "false"; } catch (e) {}
+
   /* the configure service rewrites index.html itself, flipping this
      attribute - so the page knows synchronously whether it is configured,
      without waiting for a getConfig round trip. */
@@ -67,6 +72,7 @@
         // into this page by the configure service
         contextName: contextName || (el && el.getAttribute("contextName")) || undefined, // Viya only
         useComputeApi: !!(el && el.getAttribute("useComputeApi") === "true"), // Viya only
+        runAsTask: serverType === "SASVIYA" ? runAsTask : undefined,
         debug: debug
       });
       if (sasjs && sasjs.setDebugState) sasjs.setDebugState(debug);
@@ -235,6 +241,12 @@
       } catch (e) {}
       sasjs = null; // rebuild the adapter with the new context on next call
     },
+    isRunAsTask: function () { return runAsTask; },
+    setRunAsTask: function (on) {
+      runAsTask = !!on;
+      try { localStorage.setItem("macrodash_runastask", runAsTask ? "true" : "false"); } catch (e) {}
+      sasjs = null; // rebuild the adapter with the new setting
+    },
     isDebug: function () { return debug; },
     getConfig: function (cb) {
       call("getconfig", null, function (j) {
@@ -243,7 +255,9 @@
       });
     },
     configure: function (rootdir, cb) {
-      call("configure", { config: [{ rootdir: rootdir }] }, function (j) {
+      var row = { rootdir: rootdir };
+      if (serverType === "SASVIYA") row.runastask = runAsTask ? "true" : "false";
+      call("configure", { config: [row] }, function (j) {
         cb(j && j.result ? j.result[0] : null);
       });
     },

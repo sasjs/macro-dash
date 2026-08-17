@@ -14,6 +14,7 @@
   @li sb_init.sas
   @li ms_getfile.sas
   @li mf_getplatform.sas
+  @li mf_existcol.sas
   @li mf_getuniquefileref.sas
   @li mf_mkdir.sas
   @li mp_abort.sas
@@ -34,6 +35,19 @@ data _null_;
   set work.config;
   call symputx('rootdir',rootdir);
 run;
+
+/* optional runastask flag (Viya only) - stamped into MacroDash.html */
+%global sb_runastask;
+%let sb_runastask=;
+%macro sb_read_runastask();
+%if %mf_existcol(work.config,runastask) %then %do;
+  data _null_;
+    set work.config;
+    call symputx('sb_runastask',runastask);
+  run;
+%end;
+%mend sb_read_runastask;
+%sb_read_runastask()
 
 %mp_abort(iftrue= (%length(&rootdir)=0)
   ,mac=&_program
@@ -138,6 +152,10 @@ libname SB "&sb_rootdir";
     set mdhtml;
     line=prxchange(cats('s|contextname="[^"]*"|contextname="'
       ,symget('_contextname'),'"|i'),-1,line);
+    %if %length(&sb_runastask)>0 %then %do;
+    line=prxchange(cats('s|runastask="[^"]*"|runastask="'
+      ,'&sb_runastask','"|i'),-1,line);
+    %end;
     put line;
   run;
 

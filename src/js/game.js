@@ -343,6 +343,14 @@
         return;
       }
     }
+    if (cfgHits.options && y >= cfgHits.options[0] && y <= cfgHits.options[1]) {
+      backend.setRunAsTask(!backend.isRunAsTask());
+      configField = "options";
+      return;
+    }
+    if (cfgHits.step4 && y >= cfgHits.step4[0] && y <= cfgHits.step4[1]) {
+      configField = "options"; return;
+    }
   }
 
   function refreshScores() {
@@ -392,7 +400,7 @@
       }
       var isViya = backend.isViya && backend.isViya();
       var filtered = filteredContexts();
-      var FIELDS = isViya ? ["account", "context", "rootdir"] : ["rootdir"];
+      var FIELDS = isViya ? ["account", "context", "rootdir", "options"] : ["rootdir"];
       if (isViya && viyaAuth === "login") {
         if (e.code === "Escape") state = "title";
         else if (e.code === "KeyL") {
@@ -452,6 +460,13 @@
           }
         } else if (/^[\x20-\x7e]$/.test(e.key) && ctxFilter.length < 40) {
           ctxFilter += e.key; contextIdx = 0;
+        }
+      } else if (isViya && configField === "options") {
+        // toggles only: Enter / Space / arrows flip the switch
+        if (["Enter", "Space", "ArrowLeft", "ArrowRight", "ArrowUp",
+            "ArrowDown"].indexOf(e.code) >= 0) {
+          e._sbHandled = true;
+          backend.setRunAsTask(!backend.isRunAsTask());
         }
       } else if (e.code === "Enter") {
         e._sbHandled = true;
@@ -1122,6 +1137,27 @@
     if (configField === "rootdir") {
       cfgHits.fields.rootdir = searchBox(configInput, true, y);
       y += 30;
+    }
+
+    // ---- STEP 4: options (Viya switches) ----
+    cfgHits.step4 = stepHeader(4, "OPTIONS",
+      "runAsTask=" + (backend.isRunAsTask() ? "ON" : "OFF"),
+      true, configField === "options", y);
+    if (configField === "options") {
+      var oy = y + 26;
+      var on = backend.isRunAsTask();
+      ctx.fillStyle = on ? "#43a047" : "#8aa8d8";
+      ctx.font = "14px monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("> runAsTask (job tasks, _debug=128): " + (on ? "ON " : "OFF"), 60, oy + 14);
+      ctx.textAlign = "center";
+      cfgHits.options = [oy, oy + 19];
+      ctx.fillStyle = "#44597a";
+      ctx.font = "11px monospace";
+      ctx.fillText("ENTER / arrows / click toggles", W2, oy + 34);
+      y = oy + 40;
+    } else {
+      y += 26;
     }
 
     // verdict line
