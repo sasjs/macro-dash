@@ -393,7 +393,15 @@
       var isViya = backend.isViya && backend.isViya();
       var filtered = filteredContexts();
       var FIELDS = isViya ? ["account", "context", "rootdir"] : ["rootdir"];
-      if (e.code === "Tab") {
+      if (isViya && viyaAuth === "login") {
+        if (e.code === "Escape") state = "title";
+        else if (e.code === "KeyL") {
+          window.open(backend.serverUrl() + "/SASLogon/login", "_blank");
+        } else if (e.code !== "Tab") {
+          viyaAuth = "checking";
+          checkViyaAuth();
+        }
+      } else if (e.code === "Tab") {
         configField = FIELDS[(FIELDS.indexOf(configField) + 1) % FIELDS.length];
       } else if (e.code === "Escape") {
         state = "title";
@@ -487,24 +495,40 @@
         accountFilter = "";
         accountChosen = null;
         currentUser = null;
-        backend.getCurrentUser(function (u) { currentUser = u; });
-        backend.listContexts(function (list) {
-          contexts = list || [];
-          accounts = contexts.filter(function (c) { return c.runAs && c.reusable; })
-            .map(function (c) { return c.runAs; })
-            .filter(function (v, i, a) { return a.indexOf(v) === i; });
-          // preselect the account of the persisted context, if any
-          if (ctxChosen) contexts.forEach(function (c) {
-            if (c.name === ctxChosen && c.runAs) accountChosen = c.runAs;
-          });
-          if (!accountChosen && accounts.length === 1) accountChosen = accounts[0];
-          accountIdx = Math.max(0, accounts.indexOf(accountChosen));
-        });
+        // first check the Viya session (adapter checkSession); only load
+        // contexts once we know we are logged in
+        viyaAuth = "checking";
+        checkViyaAuth();
       } else {
         configField = "rootdir";
       }
     }
   });
+
+  /* Viya session gate for the configurator.  viyaAuth: "checking" | "ok"
+   * | "login".  On "login" the user opens SASLogon (L key / click), signs
+   * in (same-origin cookie), then any key retries. */
+  var viyaAuth = "ok";
+
+  function checkViyaAuth() {
+    backend.checkLogin(function (r) {
+      if (!r || !r.isLoggedIn) { viyaAuth = "login"; return; }
+      viyaAuth = "ok";
+      currentUser = { id: r.userName, name: r.userName };
+      backend.listContexts(function (list) {
+        contexts = list || [];
+        accounts = contexts.filter(function (c) { return c.runAs && c.reusable; })
+          .map(function (c) { return c.runAs; })
+          .filter(function (v, i, a) { return a.indexOf(v) === i; });
+        // preselect the account of the persisted context, if any
+        if (ctxChosen) contexts.forEach(function (c) {
+          if (c.name === ctxChosen && c.runAs) accountChosen = c.runAs;
+        });
+        if (!accountChosen && accounts.length === 1) accountChosen = accounts[0];
+        accountIdx = Math.max(0, accounts.indexOf(accountChosen));
+      });
+    });
+  }
   document.addEventListener("keydown", function () {
     if (state === "title" && !jingled) { jingled = true; audio.unlock(); audio.jingle(); }
   });
@@ -894,6 +918,26 @@
     ctx.fillStyle = "#4da3ff";
     ctx.font = "bold 22px monospace";
     ctx.fillText("MACRO DASH SETUP", W2, 42);
+
+    // Viya session gate: checking / not-logged-in states replace the wizard
+    if (isViya && viyaAuth !== "ok") {
+      ctx.font = "14px monospace";
+      if (viyaAuth === "checking") {
+        ctx.fillStyle = "#8aa8d8";
+        ctx.fillText("checking Viya session...", W2, 200);
+      } else {
+        ctx.fillStyle = "#e53935";
+        ctx.fillText("NOT LOGGED IN to Viya", W2, 180);
+        ctx.fillStyle = "#dbe7ff";
+        ctx.fillText("press L to open SASLogon in a new tab and sign in", W2, 220);
+        ctx.fillStyle = "#8aa8d8";
+        ctx.font = "12px monospace";
+        ctx.fillText("(same-origin cookie - it counts here immediately)", W2, 242);
+        ctx.fillText("then come back and press any key to retry - ESC cancels", W2, 264);
+      }
+      ctx.textAlign = "left";
+      return;
+    }
 
     cfgHits.account = []; cfgHits.context = []; cfgHits.fields = {};
     var blink = Math.floor(Date.now() / 500) % 2;

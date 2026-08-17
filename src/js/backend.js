@@ -206,6 +206,17 @@
        page itself is only re-stamped on disk, not reloaded) */
     setConfigured: function () { configured = true; },
     isViya: function () { return serverType === "SASVIYA"; },
+    serverUrl: function () { return (el && el.getAttribute("serverUrl")) || ""; },
+    /* Viya session check via the adapter (lazy-loads sasjs.js).  Resolves
+       with { isLoggedIn, userName } or null on failure. */
+    checkLogin: function (cb) {
+      withAdapter(function (a) {
+        if (!a || !a.checkSession) { cb(null); return; }
+        a.checkSession()
+          .then(function (r) { cb(r || null); })
+          .catch(function () { cb(null); });
+      });
+    },
     listContexts: listContexts,
     getCurrentUser: getCurrentUser,
     testContext: testContext,
