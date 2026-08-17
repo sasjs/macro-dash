@@ -125,10 +125,15 @@
      streamed by the SAS Job Execution web app (cookie auth), so
      'same-origin' credentials suffice and CSP (connect-src 'self') is
      untouched. */
+  /* metadata calls (contexts list + one detail per context) can total
+     several MB over a slow link - 5s truncates them mid-JSON */
+  var META_TIMEOUT_MS = 30000;
+
   function viyaFetch(path, opts, cb) {
     if (serverType !== "SASVIYA") { cb(null); return; }
     var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, REQUEST_TIMEOUT_MS);
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); },
+      (opts && opts.timeout) || META_TIMEOUT_MS);
     var base = (el && el.getAttribute("serverUrl")) || "";
     opts = opts || {};
     opts.credentials = "same-origin";
