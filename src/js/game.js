@@ -260,7 +260,23 @@
   var configInput = "";
   var configMsg = "";
   var contexts = null; // Viya compute contexts: null = loading, [] = none
-  var contextIdx = 0;
+  var contextIdx = 0; // index into the FILTERED context list
+  var ctxFilter = ""; // search text for the context picker
+  var ctxChosen = null; // the context picked with ENTER (name)
+  var ctxTest = {}; // context id -> "testing" | "ok" | "fail"
+  var currentUser = null; // { id, name } - the account jobs will run as
+  var configField = "rootdir"; // which config field has keyboard focus
+
+  /* contexts matching the search text.  Only contexts that carry a runAs
+   * (batch) identity are offered - the whole point is that the configure
+   * job creates files as that account, not as the interactive user. */
+  function filteredContexts() {
+    if (!contexts) return [];
+    var f = ctxFilter.toLowerCase();
+    return contexts.filter(function (c) {
+      return c.runAs && (!f || c.name.toLowerCase().indexOf(f) >= 0);
+    });
+  }
 
   function refreshScores() {
     if (!backendOn) return;
@@ -301,16 +317,42 @@
         initials += e.key.toUpperCase();
       }
     } else if (state === "config") {
-      if (e.code === "ArrowUp" || e.code === "ArrowDown") {
-        if (contexts && contexts.length) {
-          var step = e.code === "ArrowDown" ? 1 : -1;
-          contextIdx = (contextIdx + step + contexts.length) % contexts.length;
+      var isViya = backend.isViya && backend.isViya();
+      var filtered = filteredContexts();
+      if (isViya && e.code === "Tab") {
+        e.preventDefault();
+        configField = configField === "rootdir" ? "context" : "rootdir";
+      } else if (isViya && configField === "context") {
+        if (e.code === "ArrowUp" || e.code === "ArrowDown") {
+          if (filtered.length) {
+            var step = e.code === "ArrowDown" ? 1 : -1;
+            contextIdx = (contextIdx + step + filtered.length) % filtered.length;
+          }
+        } else if (e.code === "Backspace") {
+          ctxFilter = ctxFilter.slice(0, -1); contextIdx = 0;
+        } else if (e.code === "Enter") {
+          e._sbHandled = true;
+          if (filtered[contextIdx]) {
+            ctxChosen = filtered[contextIdx].name;
+            configField = "rootdir";
+          }
+        } else if (e.code === "KeyT") {
+          // test the highlighted context by creating+deleting a session
+          var tc = filtered[contextIdx];
+          if (tc && !ctxTest[tc.name]) {
+            ctxTest[tc.name] = "testing";
+            backend.testContext(tc.name, function (ok) {
+              ctxTest[tc.name] = ok ? "ok" : "fail";
+            });
+          }
+        } else if (e.code === "Escape") {
+          state = "title";
+        } else if (/^[\x20-\x7e]$/.test(e.key) && ctxFilter.length < 40) {
+          ctxFilter += e.key; contextIdx = 0;
         }
       } else if (e.code === "Enter") {
         e._sbHandled = true;
-        if (backend.isViya && backend.isViya() && contexts && contexts[contextIdx]) {
-          backend.setContext(contexts[contextIdx].name);
-        }
+        if (isViya && ctxChosen) backend.setContext(ctxChosen);
         configMsg = "configuring...";
         backend.configure(configInput, function (res) {
           if (res && res.STATUS === "configured") {
@@ -335,18 +377,17 @@
       configInput = "";
       configMsg = "";
       state = "config";
-      // Viya: fetch the compute contexts for the picker (direct REST call,
-      // no adapter needed - see backend.listContexts)
+      configField = "rootdir";
+      // Viya: fetch the compute contexts for the picker and the identity
+      // the jobs will run as (direct REST calls, no adapter needed)
       if (backend.isViya && backend.isViya()) {
         contexts = null;
-        backend.listContexts(function (list) {
-          contexts = list || [];
-          contextIdx = 0;
-          var cur = backend.getContext && backend.getContext();
-          if (cur) contexts.forEach(function (c, i) {
-            if (c.name === cur) contextIdx = i;
-          });
-        });
+        ctxFilter = "";
+        contextIdx = 0;
+        ctxChosen = backend.getContext ? backend.getContext() : null;
+        currentUser = null;
+        backend.getCurrentUser(function (u) { currentUser = u; });
+        backend.listContexts(function (list) { contexts = list || []; });
       }
     }
   });
@@ -734,50 +775,81 @@
     ctx.fillStyle = "#061224";
     ctx.fillRect(0, 0, eng.viewWidth, eng.worldHeight);
     ctx.textAlign = "center";
+    var isViya = backend.isViya && backend.isViya();
+    var W2 = eng.viewWidth / 2;
     ctx.fillStyle = "#4da3ff";
     ctx.font = "bold 24px monospace";
-    ctx.fillText("MACRO DASH SETUP", eng.viewWidth / 2, 120);
-    ctx.fillStyle = "#dbe7ff";
-    ctx.font = "14px monospace";
-    ctx.fillText("Enter the target folder for the results dataset (scores.sas7bdat):",
-      eng.viewWidth / 2, 180);
-    ctx.fillStyle = "#000";
-    ctx.fillRect(eng.viewWidth / 2 - 300, 210, 600, 30);
-    ctx.fillStyle = "#43a047";
-    ctx.font = "16px monospace";
-    ctx.fillText(configInput + (Math.floor(Date.now() / 500) % 2 ? "_" : " "),
-      eng.viewWidth / 2, 231);
-    ctx.fillStyle = "#ffb300";
-    ctx.font = "13px monospace";
-    ctx.fillText(configMsg, eng.viewWidth / 2, 280);
-    ctx.fillStyle = "#8aa8d8";
-    ctx.fillText("ENTER to save  -  ESC to cancel", eng.viewWidth / 2, 320);
-    ctx.fillStyle = backend.isDebug() ? "#43a047" : "#8aa8d8";
-    ctx.fillText("DEBUG (sasjs adapter): " + (backend.isDebug() ? "ON" : "OFF") +
-      "  -  press D to toggle", eng.viewWidth / 2, 350);
+    ctx.fillText("MACRO DASH SETUP", W2, 70);
 
-    // Viya compute context picker (dropdown: arrows to move, ENTER saves)
-    if (backend.isViya && backend.isViya()) {
-      ctx.fillStyle = "#4da3ff";
+    // rootdir field
+    ctx.fillStyle = configField === "rootdir" ? "#dbe7ff" : "#8aa8d8";
+    ctx.font = "13px monospace";
+    ctx.fillText((configField === "rootdir" ? "> " : "  ") +
+      "RESULTS FOLDER (scores.sas7bdat):", W2, 105);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(W2 - 300, 115, 600, 26);
+    ctx.fillStyle = configField === "rootdir" ? "#43a047" : "#2f7a3e";
+    ctx.font = "15px monospace";
+    ctx.fillText(configInput +
+      (configField === "rootdir" && Math.floor(Date.now() / 500) % 2 ? "_" : " "),
+      W2, 134);
+
+    // Viya: context search + picker + run-as identity
+    if (isViya) {
       ctx.font = "13px monospace";
-      ctx.fillText("COMPUTE CONTEXT (arrows to choose):", eng.viewWidth / 2, 382);
+      ctx.fillStyle = configField === "context" ? "#dbe7ff" : "#8aa8d8";
+      ctx.fillText((configField === "context" ? "> " : "  ") +
+        "COMPUTE CONTEXT (TAB switches field, type to search, T tests):",
+        W2, 168);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(W2 - 300, 178, 600, 26);
+      ctx.fillStyle = configField === "context" ? "#43a047" : "#2f7a3e";
+      ctx.font = "15px monospace";
+      ctx.fillText(ctxFilter +
+        (configField === "context" && Math.floor(Date.now() / 500) % 2 ? "_" : " "),
+        W2, 197);
+
+      var filtered = filteredContexts();
       ctx.font = "14px monospace";
       if (contexts === null) {
         ctx.fillStyle = "#8aa8d8";
-        ctx.fillText("loading contexts...", eng.viewWidth / 2, 406);
-      } else if (!contexts.length) {
+        ctx.fillText("loading contexts...", W2, 226);
+      } else if (!filtered.length) {
         ctx.fillStyle = "#8aa8d8";
-        ctx.fillText("(adapter default context)", eng.viewWidth / 2, 406);
+        ctx.fillText(contexts.some(function (c) { return c.runAs; })
+          ? "(no contexts match - keep typing or clear the search)"
+          : "(no contexts expose a runAs identity on this Viya)", W2, 226);
       } else {
-        // windowed list of 5 around the selection
-        var start = Math.max(0, Math.min(contextIdx - 2, contexts.length - 5));
-        contexts.slice(start, start + 5).forEach(function (c, i) {
+        var start = Math.max(0, Math.min(contextIdx - 2, filtered.length - 5));
+        filtered.slice(start, start + 5).forEach(function (c, i) {
           var sel = start + i === contextIdx;
-          ctx.fillStyle = sel ? "#43a047" : "#8aa8d8";
-          fitText((sel ? "> " : "  ") + c.name, 406 + i * 18, sel ? "bold " : "", 13);
+          var t = ctxTest[c.name];
+          var row = (sel ? "> " : "  ") + c.name + "  [as " + c.runAs + "]" +
+            (t === "testing" ? "  (testing...)" : t === "ok" ? "  OK" :
+             t === "fail" ? "  UNUSABLE" : "");
+          ctx.fillStyle = t === "fail" ? "#e53935" :
+            sel ? "#43a047" : "#8aa8d8";
+          fitText(row, 226 + i * 20, sel ? "bold " : "", 14);
         });
       }
+      // who will the files belong to?
+      ctx.font = "13px monospace";
+      ctx.fillStyle = "#ffd54d";
+      ctx.fillText("FILES WILL BE CREATED BY: " +
+        (ctxChosen ? ctxChosen + " (" +
+          ((filtered.find(function (c) { return c.name === ctxChosen; }) || {}).runAs ||
+            "default") + ")"
+          : currentUser ? currentUser.name + " (you)" : "..."), W2, 340);
     }
+
+    ctx.fillStyle = "#ffb300";
+    ctx.font = "13px monospace";
+    ctx.fillText(configMsg, W2, isViya ? 372 : 280);
+    ctx.fillStyle = "#8aa8d8";
+    ctx.fillText("ENTER to save  -  ESC to cancel", W2, isViya ? 402 : 320);
+    ctx.fillStyle = backend.isDebug() ? "#43a047" : "#8aa8d8";
+    ctx.fillText("DEBUG (sasjs adapter): " + (backend.isDebug() ? "ON" : "OFF") +
+      "  -  press D to toggle", W2, isViya ? 432 : 350);
     ctx.textAlign = "left";
   }
 

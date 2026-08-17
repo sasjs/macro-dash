@@ -104,31 +104,81 @@
     });
   }
 
-  /* Viya compute contexts: the adapter exposes no public contexts API, so
-     we hit the REST endpoint directly.  Same-origin when streamed by the
-     SAS Job Execution web app (cookie auth), so 'same-origin' credentials
-     suffice and CSP (connect-src 'self') is untouched.  Resolves with a
-     list of { id, name } or null on any failure. */
-  function listContexts(cb) {
+  /* Viya REST helper: the adapter exposes no public API for contexts or
+     identities, so we hit the endpoints directly.  Same-origin when
+     streamed by the SAS Job Execution web app (cookie auth), so
+     'same-origin' credentials suffice and CSP (connect-src 'self') is
+     untouched. */
+  function viyaFetch(path, opts, cb) {
     if (serverType !== "SASVIYA") { cb(null); return; }
     var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, REQUEST_TIMEOUT_MS);
     var base = (el && el.getAttribute("serverUrl")) || "";
-    fetch(base + "/compute/contexts?limit=100", {
-      credentials: "same-origin",
-      headers: { "Accept": "application/json" },
-      signal: ctrl ? ctrl.signal : undefined
-    }).then(function (r) {
-      if (!r.ok) throw new Error(r.status);
-      return r.json();
-    }).then(function (j) {
+    opts = opts || {};
+    opts.credentials = "same-origin";
+    opts.headers = Object.assign({ "Accept": "application/json" }, opts.headers);
+    if (ctrl) opts.signal = ctrl.signal;
+    fetch(base + path, opts).then(function (r) {
       clearTimeout(timer);
-      var items = (j && j.items) || [];
-      cb(items.map(function (c) { return { id: c.id, name: c.name }; }));
+      if (!r.ok) { cb(null, r.status); return; }
+      if (r.status === 204 || opts.method === "DELETE") { cb({}, r.status); return; }
+      r.json().then(function (j) { cb(j, r.status); },
+                    function () { cb({}, r.status); });
     }).catch(function () {
       clearTimeout(timer);
-      cb(null);
+      cb(null, 0);
     });
+  }
+
+  /* pull the runAs (batch) identity out of a compute context, wherever
+     this Viya version puts it (not all expose one) */
+  function extractRunAs(j) {
+    var a = j.attributes || {};
+    return a.runServerAs || j.runAsUserId || a.runAsUserId || a.runAs ||
+           a.runas || a.RUNAS ||
+           (j.environment && j.environment.runAsUserId) || null;
+  }
+
+  /* list compute contexts -> [{ id, name, runAs }] (null on failure).
+     The list view is minimal, so each context is fetched in full (in
+     parallel) to pick up its runAs identity. */
+  function listContexts(cb) {
+    viyaFetch("/compute/contexts?limit=100", null, function (j) {
+      if (!j) { cb(null); return; }
+      var items = (j && j.items) || [];
+      if (!items.length) { cb([]); return; }
+      var out = new Array(items.length), left = items.length;
+      items.forEach(function (c, i) {
+        viyaFetch("/compute/contexts/" + c.id, null, function (d) {
+          out[i] = { id: c.id, name: c.name, runAs: d ? extractRunAs(d) : null };
+          if (--left === 0) cb(out);
+        });
+      });
+    });
+  }
+
+  /* the identity the compute session (and any files it creates) will
+     belong to - shown on the setup screen so the batch account is obvious */
+  function getCurrentUser(cb) {
+    viyaFetch("/identities/users/@currentUser", null, function (j) {
+      cb(j && (j.name || j.id) ? { id: j.id, name: j.name || j.id } : null);
+    });
+  }
+
+  /* is this context usable?  Run a fixed DEPLOYED job in it (never an
+     ad-hoc compute session - that would be a code-injection surface).
+     Same mechanism the adapter uses: _PROGRAM + _contextname on the SAS
+     Job Execution web app.  cb(true/false) */
+  function testContext(name, cb) {
+    if (serverType !== "SASVIYA") { cb(false); return; }
+    var appLoc = (el && el.getAttribute("appLoc")) || "/Public/app/macrodash";
+    viyaFetch("/SASJobExecution/?_PROGRAM=" + encodeURIComponent(appLoc +
+        "/services/common/getconfig") + "&_output_type=json&_contextname=" +
+        encodeURIComponent(name),
+      { method: "POST" },
+      function (j, status) {
+        cb(!!(j && (j.config || j._PROGRAM))); // webout JSON came back
+      });
   }
 
   window.MACRODASH_BACKEND = {
@@ -139,6 +189,8 @@
     setConfigured: function () { configured = true; },
     isViya: function () { return serverType === "SASVIYA"; },
     listContexts: listContexts,
+    getCurrentUser: getCurrentUser,
+    testContext: testContext,
     getContext: function () { return contextName; },
     setContext: function (name) {
       contextName = name || null;
