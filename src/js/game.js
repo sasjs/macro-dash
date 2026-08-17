@@ -459,7 +459,8 @@
             configMsg = "ERROR: could not configure (check folder/permissions).";
           }
         });
-      } else if (e.code === "KeyD") {
+      } else if (e.code === "KeyD" && (e.ctrlKey || e.metaKey)) {
+        // Ctrl+D - plain D is a typing character in the text fields
         backend.setDebug(!backend.isDebug());
       } else if (e.code === "Backspace") {
         configInput = configInput.slice(0, -1);
@@ -938,7 +939,7 @@
       ctx.fillStyle = "#8aa8d8";
       ctx.font = "12px monospace";
       ctx.fillText(configMsg ? "" :
-        "ENTER to save - ESC to cancel - D toggles debug (" +
+        "ENTER to save - ESC to cancel - Ctrl+D toggles debug (" +
         (backend.isDebug() ? "ON" : "OFF") + ")", W2, 320);
       if (configMsg) {
         ctx.fillStyle = "#ffb300";
@@ -962,8 +963,11 @@
     }
     y += 34;
     if (configField === "account") {
-      cfgHits.fields.account = searchBox(accountFilter, true, y);
-      y += 30;
+      ctx.fillStyle = "#8aa8d8";
+      ctx.font = "12px monospace";
+      ctx.fillText("type to filter: " + (accountFilter || "") +
+        (blink ? "_" : " "), W2, y);
+      y += 8;
       var faccts = filteredAccounts();
       ctx.font = "14px monospace";
       if (!accounts.length) {
@@ -1004,8 +1008,11 @@
       !!ctxChosen, configField === "context", y);
     y += 34;
     if (configField === "context") {
-      cfgHits.fields.context = searchBox(ctxFilter, true, y);
-      y += 30;
+      ctx.fillStyle = "#8aa8d8";
+      ctx.font = "12px monospace";
+      ctx.fillText("type to filter: " + (ctxFilter || "") +
+        (blink ? "_" : " "), W2, y);
+      y += 8;
       filtered = filteredContexts();
       ctx.font = "14px monospace";
       if (contexts !== null && !filtered.length) {
@@ -1057,7 +1064,7 @@
     ctx.fillStyle = configMsg ? "#ffb300" : "#8aa8d8";
     ctx.font = "12px monospace";
     ctx.fillText(configMsg ||
-      "click a step to open it - TAB switches step - ENTER saves - ESC cancels - D debug (" +
+      "click a step to open it - TAB switches step - ENTER saves - ESC cancels - Ctrl+D debug (" +
       (backend.isDebug() ? "ON" : "OFF") + ")", W2, 462);
     ctx.textAlign = "left";
   }
