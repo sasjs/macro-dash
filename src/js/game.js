@@ -303,6 +303,17 @@
   }
 
   function handleConfigClick(x, y) {
+    // step headers (re)open that step
+    if (cfgHits.step1 && y >= cfgHits.step1[0] && y <= cfgHits.step1[1]) {
+      configField = "account"; return;
+    }
+    if (cfgHits.step2 && y >= cfgHits.step2[0] && y <= cfgHits.step2[1]) {
+      if (accountChosen || !accounts.length) configField = "context";
+      return;
+    }
+    if (cfgHits.step3 && y >= cfgHits.step3[0] && y <= cfgHits.step3[1]) {
+      configField = "rootdir"; return;
+    }
     var f = cfgHits.fields;
     if (f.rootdir && y >= f.rootdir[0] && y <= f.rootdir[1]) {
       configField = "rootdir"; return;
@@ -318,6 +329,10 @@
       if (y >= a.y0 && y <= a.y1) {
         accountChosen = a.name;
         contextIdx = 0; configField = "context";
+        // drop a chosen context that does not belong to this account
+        if (ctxChosen && contexts && !contexts.some(function (c) {
+          return c.name === ctxChosen && c.runAs === accountChosen;
+        })) ctxChosen = null;
         return;
       }
     }
@@ -397,6 +412,9 @@
             accountChosen = faccts[accountIdx];
             contextIdx = 0;
             configField = "context";
+            if (ctxChosen && contexts && !contexts.some(function (c) {
+              return c.name === ctxChosen && c.runAs === accountChosen;
+            })) ctxChosen = null;
           }
         } else if (/^[\x20-\x7e]$/.test(e.key) && accountFilter.length < 40) {
           accountFilter += e.key; accountIdx = 0;
@@ -879,109 +897,171 @@
     cfgHits.account = []; cfgHits.context = []; cfgHits.fields = {};
     var blink = Math.floor(Date.now() / 500) % 2;
 
-    function fieldBox(label, value, focused, ly) {
-      ctx.fillStyle = focused ? "#dbe7ff" : "#8aa8d8";
-      ctx.font = "13px monospace";
-      ctx.fillText((focused ? "> " : "  ") + label, W2, ly);
+    /* a step header: number, title, current value/status.  Clicking it
+     * (re)opens that step. */
+    function stepHeader(num, title, value, done, active, y) {
+      ctx.fillStyle = active ? "#122a4d" : "rgba(0,0,0,0)";
+      ctx.fillRect(40, y - 16, eng.viewWidth - 80, 24);
+      ctx.fillStyle = done ? "#43a047" : active ? "#ffd54d" : "#8aa8d8";
+      ctx.font = "bold 14px monospace";
+      ctx.textAlign = "left";
+      ctx.fillText((done ? "[x] " : "[ ] ") + num + ". " + title, 60, y);
+      ctx.fillStyle = active ? "#ffd54d" : "#dbe7ff";
+      ctx.textAlign = "right";
+      ctx.fillText(value || "", eng.viewWidth - 60, y);
+      ctx.textAlign = "center";
+      return [y - 16, y + 8];
+    }
+
+    function searchBox(value, focused, ly) {
       ctx.fillStyle = "#000";
-      ctx.fillRect(W2 - 300, ly + 8, 600, 24);
+      ctx.fillRect(W2 - 300, ly, 600, 24);
       ctx.fillStyle = focused ? "#43a047" : "#2f7a3e";
       ctx.font = "14px monospace";
-      ctx.fillText(value + (focused && blink ? "_" : " "), W2, ly + 25);
-      return [ly + 8, ly + 32];
+      ctx.fillText(value + (focused && blink ? "_" : " "), W2, ly + 17);
+      if (focused) {
+        ctx.strokeStyle = "#43a047";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(W2 - 300.5, ly + 0.5, 601, 25);
+      }
+      return [ly, ly + 24];
     }
 
     if (!isViya) {
-      cfgHits.fields.rootdir = fieldBox(
-        "RESULTS FOLDER (scores.sas7bdat):", configInput,
-        configField === "rootdir", 105);
-    }
-
-    if (isViya) {
-      // STEP 1: account (runAs identity) - searchable, windowed list
+      ctx.fillStyle = "#dbe7ff";
+      ctx.font = "13px monospace";
+      ctx.fillText("RESULTS FOLDER (scores.sas7bdat):", W2, 105);
+      cfgHits.fields.rootdir = searchBox(configInput, true, 115);
+      ctx.fillStyle = "#ffb300";
+      ctx.font = "13px monospace";
+      ctx.fillText(configMsg, W2, 280);
       ctx.fillStyle = "#8aa8d8";
       ctx.font = "12px monospace";
-      ctx.fillText("STEP 1 - ACCOUNT (batch id)" +
-        (currentUser ? " - you are " + currentUser.name : ""), W2, 62);
-      cfgHits.fields.account = fieldBox("type to search accounts",
-        accountFilter, configField === "account", 72);
+      ctx.fillText(configMsg ? "" :
+        "ENTER to save - ESC to cancel - D toggles debug (" +
+        (backend.isDebug() ? "ON" : "OFF") + ")", W2, 320);
+      if (configMsg) {
+        ctx.fillStyle = "#ffb300";
+        ctx.fillText(configMsg, W2, 320);
+      }
+      ctx.textAlign = "left";
+      return;
+    }
+
+    var y = 74;
+    var filtered, start, i;
+
+    // ---- STEP 1: account (batch id) ----
+    cfgHits.step1 = stepHeader(1, "ACCOUNT (batch id)",
+      accountChosen || "(choose)", !!accountChosen,
+      configField === "account", y);
+    if (currentUser) {
+      ctx.fillStyle = "#44597a";
+      ctx.font = "11px monospace";
+      ctx.fillText("you are " + currentUser.name, W2, y + 20);
+    }
+    y += 34;
+    if (configField === "account") {
+      cfgHits.fields.account = searchBox(accountFilter, true, y);
+      y += 30;
       var faccts = filteredAccounts();
       ctx.font = "14px monospace";
       if (!accounts.length) {
         ctx.fillStyle = "#8aa8d8";
         ctx.fillText(contexts === null ? "loading contexts..." :
-          "(no reusable contexts with a runAs identity on this Viya)", W2, 124);
+          "(no reusable contexts with a runAs identity on this Viya)", W2, y + 14);
+        y += 26;
       } else if (!faccts.length) {
         ctx.fillStyle = "#8aa8d8";
-        ctx.fillText("(no accounts match)", W2, 124);
+        ctx.fillText("(no accounts match)", W2, y + 14);
+        y += 26;
+      } else {
+        start = Math.max(0, Math.min(accountIdx - 2, faccts.length - 5));
+        faccts.slice(start, start + 5).forEach(function (a, i2) {
+          var sel = start + i2 === accountIdx || accountChosen === a;
+          var ry = y + i2 * 20;
+          ctx.fillStyle = sel ? "#43a047" : "#8aa8d8";
+          ctx.textAlign = "left";
+          ctx.fillText((sel ? "> " : "  ") + a, W2 - 200, ry + 14);
+          ctx.textAlign = "center";
+          cfgHits.account.push({ y0: ry, y1: ry + 19, name: a });
+        });
+        y += Math.min(faccts.length, 5) * 20 + 6;
+        if (faccts.length > 5) {
+          ctx.fillStyle = "#44597a";
+          ctx.font = "11px monospace";
+          ctx.fillText((start + 1) + "-" + Math.min(start + 5, faccts.length) +
+            " of " + faccts.length, W2, y + 8);
+          y += 14;
+        }
       }
-      var astart = Math.max(0, Math.min(accountIdx - 2, faccts.length - 5));
-      faccts.slice(astart, astart + 5).forEach(function (a, i) {
-        var gi = astart + i;
-        var sel = accountChosen === a || (!accountChosen && gi === accountIdx);
-        var y = 124 + i * 20;
-        ctx.fillStyle = sel ? "#43a047" : "#8aa8d8";
-        ctx.fillText((sel ? "> " : "  ") + a, W2, y);
-        cfgHits.account.push({ y0: y - 15, y1: y + 5, name: a });
-      });
-      if (faccts.length > 5) {
-        ctx.fillStyle = "#44597a";
-        ctx.font = "11px monospace";
-        ctx.fillText((astart + 1) + "-" + Math.min(astart + 5, faccts.length) +
-          " of " + faccts.length, W2, 124 + 5 * 20);
-      }
+      y += 8;
+    }
 
-      // STEP 2: context search
-      var cy = 238;
-      cfgHits.fields.context = fieldBox(
-        "STEP 2 - COMPUTE CONTEXT (type to search, T tests the highlighted one):",
-        ctxFilter, configField === "context", cy);
-      var filtered = filteredContexts();
+    // ---- STEP 2: compute context ----
+    cfgHits.step2 = stepHeader(2, "COMPUTE CONTEXT",
+      ctxChosen || (accountChosen ? "(choose)" : "(pick account first)"),
+      !!ctxChosen, configField === "context", y);
+    y += 34;
+    if (configField === "context") {
+      cfgHits.fields.context = searchBox(ctxFilter, true, y);
+      y += 30;
+      filtered = filteredContexts();
       ctx.font = "14px monospace";
-      var rowsY = cy + 48;
       if (contexts !== null && !filtered.length) {
         ctx.fillStyle = "#8aa8d8";
-        ctx.fillText("(no contexts match - clear the search)", W2, rowsY);
+        ctx.fillText("(no contexts match - clear the search)", W2, y + 14);
+        y += 26;
       }
-      var start = Math.max(0, Math.min(contextIdx - 2, filtered.length - 5));
-      filtered.slice(start, start + 5).forEach(function (c, i) {
-        var sel = start + i === contextIdx;
+      start = Math.max(0, Math.min(contextIdx - 2, filtered.length - 5));
+      filtered.slice(start, start + 5).forEach(function (c, i2) {
+        var sel = start + i2 === contextIdx;
         var t = ctxTest[c.name];
-        var y = rowsY + i * 18;
+        var ry = y + i2 * 20;
         ctx.fillStyle = t === "fail" ? "#e53935" : sel ? "#43a047" : "#8aa8d8";
-        fitText((sel ? "> " : "  ") + c.name +
-          (t === "testing" ? "  (testing...)" : t === "ok" ? "  OK" :
-           t === "fail" ? "  UNUSABLE" : ""), y, sel ? "bold " : "", 14);
-        cfgHits.context.push({ y0: y - 14, y1: y + 4, name: c.name });
+        ctx.textAlign = "left";
+        ctx.fillText((sel ? "> " : "  ") + c.name, W2 - 240, ry + 14);
+        ctx.textAlign = "right";
+        ctx.fillText(t === "testing" ? "testing..." : t === "ok" ? "OK" :
+          t === "fail" ? "UNUSABLE" : "", W2 + 240, ry + 14);
+        ctx.textAlign = "center";
+        cfgHits.context.push({ y0: ry, y1: ry + 19, name: c.name });
       });
+      y += Math.min(Math.max(filtered.length, 1), 5) * 20 + 6;
       ctx.fillStyle = "#44597a";
-      ctx.font = "12px monospace";
-      ctx.fillText("only reusable contexts (reuseServerProcesses) with a batch identity", W2, rowsY + 96);
-      ctx.fillText("(runServerAs) are listed", W2, rowsY + 109);
-
-      // STEP 3: folder
-      cfgHits.fields.rootdir = fieldBox(
-        "STEP 3 - RESULTS FOLDER (scores.sas7bdat):", configInput,
-        configField === "rootdir", rowsY + 124);
-
-      ctx.font = "13px monospace";
-      ctx.fillStyle = "#ffd54d";
-      ctx.fillText("FILES WILL BE CREATED BY: " + (accountChosen || "...") +
-        (ctxChosen ? "  in context " + ctxChosen : ""), W2, rowsY + 178);
+      ctx.font = "11px monospace";
+      ctx.fillText("only reusable contexts (reuseServerProcesses) with a batch identity " +
+        "(runServerAs) - T tests the highlighted one", W2, y + 8);
+      y += 22;
     }
 
-    if (!isViya) {
-      ctx.fillStyle = "#ffb300";
-      ctx.font = "13px monospace";
-      ctx.fillText(configMsg, W2, 280);
+    // ---- STEP 3: results folder ----
+    cfgHits.step3 = stepHeader(3, "RESULTS FOLDER",
+      configInput || "(type the path)", !!configInput,
+      configField === "rootdir", y);
+    y += 30;
+    if (configField === "rootdir") {
+      cfgHits.fields.rootdir = searchBox(configInput, true, y);
+      y += 30;
     }
+
+    // verdict line
+    ctx.font = "13px monospace";
+    ctx.fillStyle = accountChosen && ctxChosen && configInput ? "#43a047" : "#44597a";
+    var verdict = accountChosen && ctxChosen && configInput
+      ? "READY - files will be created by " + accountChosen + " via \"" + ctxChosen + "\""
+      : "files will be created by " + (accountChosen || "?") +
+        " in context " + (ctxChosen || "?");
+    ctx.fillText(verdict, W2, Math.max(y + 24, 420));
+
     ctx.fillStyle = configMsg ? "#ffb300" : "#8aa8d8";
     ctx.font = "12px monospace";
     ctx.fillText(configMsg ||
-      "ENTER to save - ESC to cancel - TAB switches field - D toggles debug (" +
-      (backend.isDebug() ? "ON" : "OFF") + ")", W2, isViya ? 476 : 320);
+      "click a step to open it - TAB switches step - ENTER saves - ESC cancels - D debug (" +
+      (backend.isDebug() ? "ON" : "OFF") + ")", W2, 462);
     ctx.textAlign = "left";
   }
+
 
   // ---- finale screens ----
   function drawComplete() {
