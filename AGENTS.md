@@ -24,7 +24,7 @@ Hard-won design decisions and platform learnings. Read this before changing the 
 ## Backend contract (frontend ↔ SAS / mock)
 
 - `js/backend.js` wraps `@sasjs/adapter` (`window.SASjs`). Adapter config is read from the hidden `<sasjs>` element in index.html; when streamed by SAS there is no `serverUrl` (same-origin ⇒ CSP-safe).
-- `adapter.request()` resolves with the webout JSON ALREADY UNWRAPPED: `res.mytable[0].COL` (uppercase columns). A table named `result` is fine — do NOT add a `res.result` unwrapping layer (it breaks exactly that case).
+- `adapter.request()` resolves with tables as `res.mytable[0].COL` (uppercase columns) on SASjs server, but on **Viya** the webout JSON is wrapped: `res.result.mytable[0].COL`. `call()` in backend.js normalises this — it unwraps `res.result` ONLY when it is a plain object (a table genuinely named `result` is an array and passes through untouched).
 - Services return the standard automatic fields (`_PROGRAM`, `SYSDATE`, `SYSTIME`, `_METAUSER`, `SASJSPROCESSMODE`) plus data tables.
 - Every call has a hard 5s timeout; failure degrades to localStorage mode.
 - **The `<sasjs configured="...">` attribute is the config flag**: the `configure` service rewrites the streamed `index.html` itself (Drive API `GET` + `PATCH` on SASjs Server via `%ms_getfile`/`%ms_createfile`), so the page knows synchronously at load. When unconfigured the frontend calls NO services except `configure` — no `getconfig` round trip. (On Viya the streamed html cannot self-update; maintain the stamp at deploy time.)

@@ -101,6 +101,12 @@
         .then(function (res) {
           if (done) return;
           clearTimeout(timer);
+          /* Viya wraps the webout JSON in a `result` property; SASjs server
+             gives the tables directly.  Unwrap only the Viya (object) case
+             - a table actually NAMED `result` is an array and must pass
+             through untouched. */
+          if (res && res.result && typeof res.result === "object" &&
+              !Array.isArray(res.result)) res = res.result;
           cb(res || null);
         })
         .catch(function () {
