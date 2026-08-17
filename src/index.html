@@ -60,7 +60,9 @@
     <span>Made with &#10084;&#65039; by <a href="https://sasapps.io" target="_blank" rel="noopener">4GL Apps</a></span>
   </footer>
 
-  <script src="sasjs.js"></script>
+  <!-- sasjs.js (adapter bundle) is LAZY-LOADED by js/backend.js on the
+       first backend call - it is big, and a blocking tag here delayed the
+       title screen by seconds -->
   <script src="js/backend.js"></script>
   <script src="js/level.js"></script>
   <script src="js/audio.js"></script>

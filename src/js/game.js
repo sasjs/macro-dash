@@ -259,6 +259,8 @@
   var initials = "";
   var configInput = "";
   var configMsg = "";
+  var contexts = null; // Viya compute contexts: null = loading, [] = none
+  var contextIdx = 0;
 
   function refreshScores() {
     if (!backendOn) return;
@@ -299,8 +301,16 @@
         initials += e.key.toUpperCase();
       }
     } else if (state === "config") {
-      if (e.code === "Enter") {
+      if (e.code === "ArrowUp" || e.code === "ArrowDown") {
+        if (contexts && contexts.length) {
+          var step = e.code === "ArrowDown" ? 1 : -1;
+          contextIdx = (contextIdx + step + contexts.length) % contexts.length;
+        }
+      } else if (e.code === "Enter") {
         e._sbHandled = true;
+        if (backend.isViya && backend.isViya() && contexts && contexts[contextIdx]) {
+          backend.setContext(contexts[contextIdx].name);
+        }
         configMsg = "configuring...";
         backend.configure(configInput, function (res) {
           if (res && res.STATUS === "configured") {
@@ -325,6 +335,19 @@
       configInput = "";
       configMsg = "";
       state = "config";
+      // Viya: fetch the compute contexts for the picker (direct REST call,
+      // no adapter needed - see backend.listContexts)
+      if (backend.isViya && backend.isViya()) {
+        contexts = null;
+        backend.listContexts(function (list) {
+          contexts = list || [];
+          contextIdx = 0;
+          var cur = backend.getContext && backend.getContext();
+          if (cur) contexts.forEach(function (c, i) {
+            if (c.name === cur) contextIdx = i;
+          });
+        });
+      }
     }
   });
   document.addEventListener("keydown", function () {
@@ -731,7 +754,30 @@
     ctx.fillText("ENTER to save  -  ESC to cancel", eng.viewWidth / 2, 320);
     ctx.fillStyle = backend.isDebug() ? "#43a047" : "#8aa8d8";
     ctx.fillText("DEBUG (sasjs adapter): " + (backend.isDebug() ? "ON" : "OFF") +
-      "  -  press D to toggle", eng.viewWidth / 2, 360);
+      "  -  press D to toggle", eng.viewWidth / 2, 350);
+
+    // Viya compute context picker (dropdown: arrows to move, ENTER saves)
+    if (backend.isViya && backend.isViya()) {
+      ctx.fillStyle = "#4da3ff";
+      ctx.font = "13px monospace";
+      ctx.fillText("COMPUTE CONTEXT (arrows to choose):", eng.viewWidth / 2, 382);
+      ctx.font = "14px monospace";
+      if (contexts === null) {
+        ctx.fillStyle = "#8aa8d8";
+        ctx.fillText("loading contexts...", eng.viewWidth / 2, 406);
+      } else if (!contexts.length) {
+        ctx.fillStyle = "#8aa8d8";
+        ctx.fillText("(adapter default context)", eng.viewWidth / 2, 406);
+      } else {
+        // windowed list of 5 around the selection
+        var start = Math.max(0, Math.min(contextIdx - 2, contexts.length - 5));
+        contexts.slice(start, start + 5).forEach(function (c, i) {
+          var sel = start + i === contextIdx;
+          ctx.fillStyle = sel ? "#43a047" : "#8aa8d8";
+          fitText((sel ? "> " : "  ") + c.name, 406 + i * 18, sel ? "bold " : "", 13);
+        });
+      }
+    }
     ctx.textAlign = "left";
   }
 
