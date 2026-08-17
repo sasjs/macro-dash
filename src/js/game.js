@@ -267,14 +267,16 @@
   var currentUser = null; // { id, name } - the account jobs will run as
   var configField = "rootdir"; // which config field has keyboard focus
 
-  /* contexts matching the search text.  Only contexts that carry a runAs
-   * (batch) identity are offered - the whole point is that the configure
-   * job creates files as that account, not as the interactive user. */
+  /* contexts matching the search text.  Only contexts that are reusable
+   * AND carry a runAs (batch) identity are offered - the configure job
+   * creates files as that account, not as the interactive user, and a
+   * reusable server makes the test/execute cycle cheap. */
   function filteredContexts() {
     if (!contexts) return [];
     var f = ctxFilter.toLowerCase();
     return contexts.filter(function (c) {
-      return c.runAs && (!f || c.name.toLowerCase().indexOf(f) >= 0);
+      return c.runAs && c.reusable &&
+        (!f || c.name.toLowerCase().indexOf(f) >= 0);
     });
   }
 
@@ -816,9 +818,9 @@
         ctx.fillText("loading contexts...", W2, 226);
       } else if (!filtered.length) {
         ctx.fillStyle = "#8aa8d8";
-        ctx.fillText(contexts.some(function (c) { return c.runAs; })
+        ctx.fillText(contexts.some(function (c) { return c.runAs && c.reusable; })
           ? "(no contexts match - keep typing or clear the search)"
-          : "(no contexts expose a runAs identity on this Viya)", W2, 226);
+          : "(no reusable contexts with a runAs identity on this Viya)", W2, 226);
       } else {
         var start = Math.max(0, Math.min(contextIdx - 2, filtered.length - 5));
         filtered.slice(start, start + 5).forEach(function (c, i) {

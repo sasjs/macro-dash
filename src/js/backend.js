@@ -150,7 +150,10 @@
       var out = new Array(items.length), left = items.length;
       items.forEach(function (c, i) {
         viyaFetch("/compute/contexts/" + c.id, null, function (d) {
-          out[i] = { id: c.id, name: c.name, runAs: d ? extractRunAs(d) : null };
+          var a = (d && d.attributes) || {};
+          out[i] = { id: c.id, name: c.name,
+                     runAs: d ? extractRunAs(d) : null,
+                     reusable: a.reuseServerProcesses === "true" };
           if (--left === 0) cb(out);
         });
       });
