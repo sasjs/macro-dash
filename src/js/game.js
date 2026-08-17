@@ -467,9 +467,6 @@
             configMsg = "ERROR: could not configure (check folder/permissions).";
           }
         });
-      } else if (e.code === "KeyD" && (e.ctrlKey || e.metaKey)) {
-        // Ctrl+D - plain D is a typing character in the text fields
-        backend.setDebug(!backend.isDebug());
       } else if (e.code === "Backspace") {
         configInput = configInput.slice(0, -1);
       } else if (e.code === "Escape") {
@@ -983,8 +980,7 @@
       ctx.fillStyle = "#8aa8d8";
       ctx.font = "12px monospace";
       ctx.fillText(configMsg ? "" :
-        "ENTER to save - ESC to cancel - Ctrl+D toggles debug (" +
-        (backend.isDebug() ? "ON" : "OFF") + ")", W2, 320);
+        "ENTER to save - ESC to cancel", W2, 320);
       if (configMsg) {
         ctx.fillStyle = "#ffb300";
         ctx.fillText(configMsg, W2, 320);
@@ -1108,8 +1104,7 @@
     ctx.fillStyle = configMsg ? "#ffb300" : "#8aa8d8";
     ctx.font = "12px monospace";
     ctx.fillText(configMsg ||
-      "click a step to open it - TAB switches step - ENTER saves - ESC cancels - Ctrl+D debug (" +
-      (backend.isDebug() ? "ON" : "OFF") + ")", W2, 462);
+      "click a step to open it - TAB switches step - ENTER saves - ESC cancels", W2, 462);
     ctx.textAlign = "left";
   }
 

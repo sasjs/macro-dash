@@ -17,6 +17,7 @@
   @li mf_getuniquefileref.sas
   @li mf_mkdir.sas
   @li mp_abort.sas
+  @li mv_deletejes.sas
   @li mx_createfile.sas
 **/
 
@@ -57,7 +58,16 @@ proc sql;
 quit;
 libname sbt clear;
 
-/* persist: rewrite the settings job with the new rootdir */
+/* persist: rewrite the settings job with the new rootdir.  On Viya the
+  create fails with 409 Conflict when the job already exists (ie any
+  re-configure), so delete it first. */
+%macro sb_delete_settings();
+%if %mf_getplatform()=VIYA %then %do;
+  %mv_deletejes(path=&apploc/jobs/common, name=settings)
+%end;
+%mend sb_delete_settings;
+%sb_delete_settings()
+
 filename sbset temp;
 data _null_;
   file sbset;

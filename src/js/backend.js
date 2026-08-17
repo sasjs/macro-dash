@@ -17,9 +17,9 @@
   var el = document.querySelector("sasjs");
   var serverType = (el && el.getAttribute("serverType")) || "SASJS";
 
-  /* debug switch (toggled on the setup screen, persisted in localStorage) */
-  var debug = false;
-  try { debug = localStorage.getItem("macrodash_debug") === "1"; } catch (e) {}
+  /* debug is always on - the SAS log is too valuable when things break
+     (a failed configure without a log cost us a round trip already) */
+  var debug = true;
 
   /* Viya compute context, chosen on the setup screen (persisted) */
   var contextName = null;
@@ -66,6 +66,7 @@
         // user-picked (localStorage) wins; otherwise the attribute stamped
         // into this page by the configure service
         contextName: contextName || (el && el.getAttribute("contextName")) || undefined, // Viya only
+        useComputeApi: !!(el && el.getAttribute("useComputeApi") === "true"), // Viya only
         debug: debug
       });
       if (sasjs && sasjs.setDebugState) sasjs.setDebugState(debug);
@@ -230,11 +231,6 @@
       sasjs = null; // rebuild the adapter with the new context on next call
     },
     isDebug: function () { return debug; },
-    setDebug: function (on) {
-      debug = !!on;
-      try { localStorage.setItem("macrodash_debug", debug ? "1" : "0"); } catch (e) {}
-      if (sasjs && sasjs.setDebugState) sasjs.setDebugState(debug);
-    },
     getConfig: function (cb) {
       call("getconfig", null, function (j) {
         var row = j && j.config && j.config[0];
