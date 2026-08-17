@@ -916,6 +916,15 @@
     ctx.font = "bold 22px monospace";
     ctx.fillText("MACRO DASH SETUP", W2, 42);
 
+    // logged-in identity, top right
+    if (currentUser) {
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#44597a";
+      ctx.font = "11px monospace";
+      ctx.fillText(currentUser.name, eng.viewWidth - 16, 24);
+      ctx.textAlign = "center";
+    }
+
     // Viya session gate: checking / not-logged-in states replace the wizard
     if (isViya && viyaAuth !== "ok") {
       ctx.font = "14px monospace";
@@ -996,19 +1005,40 @@
     cfgHits.step1 = stepHeader(1, "ACCOUNT (batch id)",
       accountChosen || "(choose)", !!accountChosen,
       configField === "account", y);
-    if (currentUser) {
-      ctx.fillStyle = "#44597a";
-      ctx.font = "11px monospace";
-      ctx.fillText("you are " + currentUser.name, W2, y + 20);
-    }
+
     y += 34;
-    if (configField === "account") {
+    /* filter line with ghost autocomplete: typed text bold, the rest of
+       the highlighted item dimmed (it is the default on ENTER) */
+    function filterLine(typedS, items, selIdx, fy) {
+      var lx = W2 - 290;
+      ctx.textAlign = "left";
       ctx.fillStyle = "#8aa8d8";
       ctx.font = "12px monospace";
-      ctx.fillText("type to filter: " + (accountFilter || "") +
-        (blink ? "_" : " "), W2, y);
-      y += 8;
+      ctx.fillText("type to filter:", lx, fy);
+      var lw = ctx.measureText("type to filter: ").width;
+      ctx.font = "bold 13px monospace";
+      ctx.fillStyle = "#43a047";
+      ctx.fillText(typedS, lx + lw, fy + 1);
+      var tw = ctx.measureText(typedS + (blink && !items.length ? "_" : "")).width;
+      var cur = items[selIdx] || items[0];
+      if (cur) {
+        var ghost = "";
+        if (!typedS) ghost = cur; // the default, shown in full
+        else if (cur.toLowerCase().indexOf(typedS.toLowerCase()) === 0)
+          ghost = cur.substring(typedS.length);
+        if (ghost) {
+          ctx.font = "13px monospace";
+          ctx.fillStyle = "#44597a";
+          ctx.fillText((blink && typedS ? "_" : "") + ghost, lx + lw + tw, fy + 1);
+        }
+      }
+      ctx.textAlign = "center";
+    }
+
+    if (configField === "account") {
       var faccts = filteredAccounts();
+      filterLine(accountFilter, faccts, accountIdx, y);
+      y += 8;
       ctx.font = "14px monospace";
       if (!accounts.length) {
         ctx.fillStyle = "#8aa8d8";
@@ -1048,12 +1078,10 @@
       !!ctxChosen, configField === "context", y);
     y += 34;
     if (configField === "context") {
-      ctx.fillStyle = "#8aa8d8";
-      ctx.font = "12px monospace";
-      ctx.fillText("type to filter: " + (ctxFilter || "") +
-        (blink ? "_" : " "), W2, y);
-      y += 8;
       filtered = filteredContexts();
+      filterLine(ctxFilter,
+        filtered.map(function (c) { return c.name; }), contextIdx, y);
+      y += 8;
       ctx.font = "14px monospace";
       if (contexts !== null && !filtered.length) {
         ctx.fillStyle = "#8aa8d8";
