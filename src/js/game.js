@@ -511,7 +511,11 @@
     backend.checkLogin(function (r) {
       if (!r || !r.isLoggedIn) { viyaAuth = "login"; return; }
       viyaAuth = "ok";
-      currentUser = { id: r.userName, name: r.userName };
+      /* checkSession's userName can be the COMPUTE account (e.g. sasbatch)
+         - the interactive identity comes from the identities service */
+      backend.getCurrentUser(function (u) {
+        currentUser = u || { id: r.userName, name: r.userName };
+      });
       backend.listContexts(function (list) {
         contexts = list || [];
         accounts = contexts.filter(function (c) { return c.runAs && c.reusable; })
