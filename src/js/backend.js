@@ -63,7 +63,9 @@
         serverUrl: (el && el.getAttribute("serverUrl")) || undefined,
         appLoc: (el && el.getAttribute("appLoc")) || "/Public/app/macrodash",
         serverType: serverType,
-        contextName: contextName || undefined, // Viya only
+        // user-picked (localStorage) wins; otherwise the attribute stamped
+        // into this page by the configure service
+        contextName: contextName || (el && el.getAttribute("contextName")) || undefined, // Viya only
         debug: debug
       });
       if (sasjs && sasjs.setDebugState) sasjs.setDebugState(debug);

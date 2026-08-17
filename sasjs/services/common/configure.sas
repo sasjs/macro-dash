@@ -14,6 +14,7 @@
   @li sb_init.sas
   @li ms_getfile.sas
   @li mf_getplatform.sas
+  @li mf_getuniquefileref.sas
   @li mf_mkdir.sas
   @li mp_abort.sas
   @li mx_createfile.sas
@@ -95,6 +96,44 @@ libname SB "&sb_rootdir";
   %mx_createfile(&apploc/services/web/index.html
     ,inref=sbhtml2
   )
+%end;
+
+/* Viya: stamp the selected compute context into the streamed frontend
+  (MacroDash.html), so future sessions run under it by default - same
+  pattern as Data Controller's makedata service.  Non-fatal on failure:
+  the configuration itself is already saved by this point. */
+%if %mf_getplatform()=VIYA and %symexist(_contextname)
+  and %length(%superq(_contextname))>0 %then %do;
+  %local mdhtml_fref;
+  %let mdhtml_fref=%mf_getuniquefileref();
+
+  filename &mdhtml_fref filesrvc folderpath="&apploc/services"
+    filename="MacroDash.html" lrecl=32767;
+
+  data mdhtml;
+    infile &mdhtml_fref lrecl=32767 truncover;
+    input;
+    length line $32767;
+    line=_infile_;
+  run;
+
+  filename &mdhtml_fref filesrvc folderpath="&apploc/services"
+    filename="MacroDash.html" lrecl=32767;
+  data _null_;
+    file &mdhtml_fref lrecl=32767;
+    set mdhtml;
+    line=prxchange(cats('s|contextname="[^"]*"|contextname="'
+      ,symget('_contextname'),'"|i'),-1,line);
+    put line;
+  run;
+
+  %if &syscc ne 0 %then
+    %put WARNING: &_program: unable to stamp contextname in MacroDash.html;
+
+  proc datasets lib=work nolist nowarn;
+    delete mdhtml;
+  quit;
+  filename &mdhtml_fref clear;
 %end;
 
 data result;
