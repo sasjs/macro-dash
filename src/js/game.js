@@ -834,6 +834,11 @@
           fitText(row, 226 + i * 20, sel ? "bold " : "", 14);
         });
       }
+      ctx.fillStyle = "#44597a";
+      ctx.font = "12px monospace";
+      ctx.fillText("only reusable compute contexts (reuseServerProcesses) with a batch", W2, 322);
+      ctx.fillText("identity (runServerAs) are listed - the files are created by that account", W2, 336);
+
       // who will the files belong to?
       ctx.font = "13px monospace";
       ctx.fillStyle = "#ffd54d";
@@ -841,17 +846,17 @@
         (ctxChosen ? ctxChosen + " (" +
           ((filtered.find(function (c) { return c.name === ctxChosen; }) || {}).runAs ||
             "default") + ")"
-          : currentUser ? currentUser.name + " (you)" : "..."), W2, 340);
+          : currentUser ? currentUser.name + " (you)" : "..."), W2, 358);
     }
 
     ctx.fillStyle = "#ffb300";
     ctx.font = "13px monospace";
-    ctx.fillText(configMsg, W2, isViya ? 372 : 280);
+    ctx.fillText(configMsg, W2, isViya ? 386 : 280);
     ctx.fillStyle = "#8aa8d8";
-    ctx.fillText("ENTER to save  -  ESC to cancel", W2, isViya ? 402 : 320);
+    ctx.fillText("ENTER to save  -  ESC to cancel", W2, isViya ? 412 : 320);
     ctx.fillStyle = backend.isDebug() ? "#43a047" : "#8aa8d8";
     ctx.fillText("DEBUG (sasjs adapter): " + (backend.isDebug() ? "ON" : "OFF") +
-      "  -  press D to toggle", W2, isViya ? 432 : 350);
+      "  -  press D to toggle", W2, isViya ? 442 : 350);
     ctx.textAlign = "left";
   }
 
