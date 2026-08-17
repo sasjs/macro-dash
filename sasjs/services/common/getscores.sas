@@ -17,6 +17,7 @@ data scores;
   stop;
 run;
 
+%macro sb_read();
 %if %length(&sb_rootdir)>0 and %mf_existds(sb.scores) %then %do;
   proc sql;
     create table scores as
@@ -31,6 +32,8 @@ run;
     set scores(obs=10);
   run;
 %end;
+%mend sb_read;
+%sb_read()
 
 %webout(OPEN)
 %webout(OBJ,scores)

@@ -45,6 +45,7 @@ data _null_;
   call symputx('sb_score',score);
 run;
 
+%macro sb_append();
 %if %mf_existds(sb.scores) %then %do;
   proc append base=sb.scores data=newscore;
   run;
@@ -54,6 +55,8 @@ run;
     set newscore;
   run;
 %end;
+%mend sb_append;
+%sb_append()
 
 /* rank of this run */
 proc sql noprint;

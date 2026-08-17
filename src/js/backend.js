@@ -104,10 +104,10 @@
           if (done) return;
           clearTimeout(timer);
           /* Viya wraps the webout JSON in a `result` property; SASjs server
-             gives the tables directly.  Unwrap only the Viya (object) case
-             - a table actually NAMED `result` is an array and must pass
-             through untouched. */
-          if (res && res.result && typeof res.result === "object" &&
+             gives the tables directly.  Unwrap only when on Viya - a table
+             or property actually NAMED `result` must pass through untouched. */
+          if (serverType === "SASVIYA" && res && res.result &&
+              typeof res.result === "object" &&
               !Array.isArray(res.result)) res = res.result;
           cb(res || null);
         })

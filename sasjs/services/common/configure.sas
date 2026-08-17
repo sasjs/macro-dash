@@ -83,6 +83,7 @@ libname SB "&sb_rootdir";
   On SASjs Server the streamed web files live on SASjs Drive, so we can
   rewrite the file in place.  On Viya the web content is compiled into the
   stream service itself, so the frontend falls back to getconfig there. */
+%macro sb_stamp_configured();
 %if %mf_getplatform()=SASJS %then %do;
   %ms_getfile(&apploc/services/web/index.html, outref=sbhtml)
   filename sbhtml2 temp;
@@ -97,11 +98,14 @@ libname SB "&sb_rootdir";
     ,inref=sbhtml2
   )
 %end;
+%mend sb_stamp_configured;
+%sb_stamp_configured()
 
 /* Viya: stamp the selected compute context into the streamed frontend
   (MacroDash.html), so future sessions run under it by default - same
   pattern as Data Controller's makedata service.  Non-fatal on failure:
   the configuration itself is already saved by this point. */
+%macro sb_stamp_context();
 %if %mf_getplatform()=VIYA and %symexist(_contextname)
   and %length(%superq(_contextname))>0 %then %do;
   %local mdhtml_fref;
@@ -135,6 +139,8 @@ libname SB "&sb_rootdir";
   quit;
   filename &mdhtml_fref clear;
 %end;
+%mend sb_stamp_context;
+%sb_stamp_context()
 
 data result;
   length status $32 rootdir $256;
