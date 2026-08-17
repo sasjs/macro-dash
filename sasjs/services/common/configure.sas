@@ -14,7 +14,7 @@
   @li sb_init.sas
   @li ms_getfile.sas
   @li mf_getplatform.sas
-  @li mf_existcol.sas
+  @li mf_existvar.sas
   @li mf_getuniquefileref.sas
   @li mf_mkdir.sas
   @li mp_abort.sas
@@ -40,7 +40,7 @@ run;
 %global sb_runastask;
 %let sb_runastask=;
 %macro sb_read_runastask();
-%if %mf_existcol(work.config,runastask) %then %do;
+%if %mf_existvar(work.config,runastask) %then %do;
   data _null_;
     set work.config;
     call symputx('sb_runastask',runastask);
