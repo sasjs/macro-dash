@@ -1,6 +1,6 @@
 {
   "branches": ["main"],
-  "repositoryUrl": "https://github.com/sasjs/macrodash",
+  "repositoryUrl": "https://github.com/sasjs/macro-dash",
   "plugins": [
     [
       "@semantic-release/commit-analyzer",
