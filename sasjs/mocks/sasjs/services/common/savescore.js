@@ -2,7 +2,7 @@
  * Mirrors savescore.sas.  Input table `savescore` arrives as CSV (inline
  * or uploaded file): one row with columns name,time,score,amps.  The entry
  * is merged into the leaderboard in the configured rootdir (scores.json -
- * the mock analogue of sb_rootdir/scores.sas7bdat), sorted by time
+ * the mock analogue of md_rootdir/scores.sas7bdat), sorted by time
  * (fastest first); the full table plus the player's RANK are returned,
  * along with the standard SASjs automatic fields.  No /tmp.
  */

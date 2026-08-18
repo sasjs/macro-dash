@@ -38,7 +38,7 @@
         "allowInsecureRequests": false
       },
       "appLoc": "/Users/viyademo18/macrodash",
-      "contextName": "SAS Studio compute context"
+      "contextName": "Compute Reusable"
     },
     {
       "name": "sas9",

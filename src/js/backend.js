@@ -300,6 +300,10 @@
            (JES web - the attr3 reader maps anything else to undefined) */
         row.usecomputeapi = apiMode === "compute" ? "true"
           : apiMode === "jes" ? "false" : "null";
+        /* JES request params (like _contextname) are NOT auto-promoted to
+           macro variables, so the service cannot read it via %symexist.
+           Send it as a column instead so it can be stamped into the HTML. */
+        row.contextname = contextName || "";
       }
       call("configure", { config: [row] }, function (j) {
         cb(j && j.result ? j.result[0] : null);

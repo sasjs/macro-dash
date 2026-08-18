@@ -1,0 +1,65 @@
+name: Release
+
+# Builds the SASjs deployable artefacts for every platform (Viya + SASjs
+# Server) and publishes a GitHub release with them attached.  Versioning is
+# fully automated via semantic-release (conventional commits on `main`).
+#
+# Artefacts attached to each release:
+#   macro-dash-viya.sas         - Viya streaming deploy script (sasjs run)
+#   macro-dash-server.json.zip  - SASjs Server service pack (sasjs deploy)
+#
+# The CLI names the build outputs <target>.sas / <target>.json.zip (only
+# the .sas is renameable via buildConfig.buildOutputFileName, the .json.zip
+# is hardcoded), so we rename both post-build for a consistent prefix.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # semantic-release needs full history to analyse commits
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # regenerates src/sasjs.js via the prepare script
+      - run: npm ci
+
+      # physics / level sanity gate
+      - run: npm test
+
+      # build deployable artefacts for each platform (compile + build only -
+      # no deploy: the release IS the delivery channel).  Each `compile`
+      # wipes sasjsbuild/, so move the first target's artefacts out to a
+      # staging dir before building the second.
+      - run: |
+          mkdir -p artefacts
+          npx sasjs compile -t viya && npx sasjs build -t viya
+          mv sasjsbuild/viya.sas artefacts/macro-dash-viya.sas
+      - run: |
+          npx sasjs compile -t server && npx sasjs build -t server
+          mv sasjsbuild/server.json.zip artefacts/macro-dash-server.json.zip
+
+      - name: Verify build artefacts
+        run: |
+          test -f artefacts/macro-dash-viya.sas
+          test -f artefacts/macro-dash-server.json.zip
+          ls -lh artefacts/macro-dash-viya.sas artefacts/macro-dash-server.json.zip
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release

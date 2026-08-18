@@ -21,9 +21,9 @@
 
 **/
 
-%macro sb_init();
+%macro md_init();
 
-%global sb_rootdir apploc _program _debug sasjs_mdebug;
+%global md_rootdir apploc _program _debug sasjs_mdebug;
 
 /* strict mode */
 %mp_init()
@@ -42,35 +42,35 @@ options lrecl=32767;
 
 /* get Macro Dash settings (a plain file under the apploc, written by the
   configure service).  Missing file = unconfigured - not an error. */
-%if %length(&sb_rootdir)>0 %then %do;
+%if %length(&md_rootdir)>0 %then %do;
   /* nothing - the settings have already been made (eg autoexec) */
 %end;
-%else %if %mf_getplatform()=VIYA %then %do;
+%else %if %mf_getplatform()=SASVIYA %then %do;
   %if %mfv_existfile(&apploc/settings.sas)=1 %then %do;
     %put &sysmacroname: fetching remote settings;
-    filename sbconfg filesrvc folderpath="&apploc" filename="settings.sas";
-    %inc sbconfg /source2;
+    filename mdconfg filesrvc folderpath="&apploc" filename="settings.sas";
+    %inc mdconfg /source2;
   %end;
 %end;
 %else %if %mf_getplatform()=SASJS %then %do;
   %put &sysmacroname: fetching remote settings;
-  %ms_getfile(&apploc/settings.sas, outref=sbconfg)
+  %ms_getfile(&apploc/settings.sas, outref=mdconfg)
   /* a missing file returns a JSON error body - only %inc real settings */
-  %local sb_valid; %let sb_valid=0;
+  %local md_valid; %let md_valid=0;
   data _null_;
-    infile sbconfg obs=10 end=eof;
+    infile mdconfg obs=10 end=eof;
     input;
-    if index(_infile_,'%let sb_rootdir') then call symputx('sb_valid',1);
+    if index(_infile_,'%let md_rootdir') then call symputx('md_valid',1);
   run;
-  %if &sb_valid=1 %then %do;
-    %inc sbconfg /source2;
+  %if &md_valid=1 %then %do;
+    %inc mdconfg /source2;
   %end;
 %end;
 
 /* when configured, assign the results library */
-%if %length(&sb_rootdir)>0 %then %do;
-  %mf_mkdir(&sb_rootdir)
-  libname SB "&sb_rootdir";
+%if %length(&md_rootdir)>0 %then %do;
+  %mf_mkdir(&md_rootdir)
+  libname SB "&md_rootdir";
 %end;
 
-%mend sb_init;
+%mend md_init;

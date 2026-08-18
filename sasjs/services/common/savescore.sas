@@ -11,14 +11,14 @@
     amps  - ampersands collected (numeric)
 
   <h4> SAS Macros </h4>
-  @li sb_init.sas
+  @li md_init.sas
   @li mf_existds.sas
   @li mp_abort.sas
 **/
 
-%sb_init()
+%md_init()
 
-%mp_abort(iftrue= (%length(&sb_rootdir)=0)
+%mp_abort(iftrue= (%length(&md_rootdir)=0)
   ,mac=&_program
   ,msg=%str(Macro Dash is not configured - no results folder)
 )
@@ -41,11 +41,11 @@ run;
 
 data _null_;
   set newscore;
-  call symputx('sb_time',time);
-  call symputx('sb_score',score);
+  call symputx('md_time',time);
+  call symputx('md_score',score);
 run;
 
-%macro sb_append();
+%macro md_append();
 %if %mf_existds(sb.scores) %then %do;
   proc append base=sb.scores data=newscore;
   run;
@@ -55,16 +55,16 @@ run;
     set newscore;
   run;
 %end;
-%mend sb_append;
-%sb_append()
+%mend md_append;
+%md_append()
 
 /* rank of this run */
 proc sql noprint;
   select count(*) into :rank trimmed
   from sb.scores
-  where time < &sb_time
-    or (time = &sb_time
-    and score > &sb_score);
+  where time < &md_time
+    or (time = &md_time
+    and score > &md_score);
 quit;
 
 %let rank=%eval(&rank+1);

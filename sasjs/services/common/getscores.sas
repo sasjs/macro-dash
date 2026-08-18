@@ -6,19 +6,19 @@
   exist yet.
 
   <h4> SAS Macros </h4>
-  @li sb_init.sas
+  @li md_init.sas
   @li mf_existds.sas
 **/
 
-%sb_init()
+%md_init()
 
 data scores;
   length rank 8 name $12 time 8 score 8 amps 8;
   stop;
 run;
 
-%macro sb_read();
-%if %length(&sb_rootdir)>0 and %mf_existds(sb.scores) %then %do;
+%macro md_read();
+%if %length(&md_rootdir)>0 and %mf_existds(sb.scores) %then %do;
   proc sql;
     create table scores as
     select name, time, score, amps,
@@ -32,8 +32,8 @@ run;
     set scores(obs=10);
   run;
 %end;
-%mend sb_read;
-%sb_read()
+%mend md_read;
+%md_read()
 
 %webout(OPEN)
 %webout(OBJ,scores)

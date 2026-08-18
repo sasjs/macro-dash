@@ -5,7 +5,7 @@
  * Matches the real service contract: an EMPTY table until the backend has
  * been configured AND at least one score exists.  Scores live in the
  * configured rootdir as scores.json (the mock analogue of
- * sb_rootdir/scores.sas7bdat) - no /tmp, no browser storage: once the
+ * md_rootdir/scores.sas7bdat) - no /tmp, no browser storage: once the
  * backend is configured, the leaderboard is a real shared board.
  */
 
