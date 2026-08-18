@@ -21,6 +21,34 @@ If you can build this, you can build a data capture form, an approvals workflow,
 
 Want to build apps like this on your SAS estate? Start with the [SASjs framework](https://sasjs.io), or talk to us at [4GL Apps](https://sasapps.io).
 
+## Deploy to SAS Viya (one line, no install)
+
+Every release ships a single self-contained deploy script — `macro-dash-viya.sas` — that streams the frontend and installs the backend services straight onto the SAS Files Service. No Node, no `@sasjs/cli`, no build step: run it from SAS Studio, SAS Enterprise Guide, or any batch SAS session.
+
+```sas
+%let apploc=/your/viya/folder;
+filename md url "https://github.com/sasjs/macro-dash/releases/latest/download/macro-dash-viya.sas";
+%inc md;
+```
+
+That's the whole deployment. Set `apploc` to wherever you want the app to live on the Files Service (it's created if it doesn't exist), and the script does the rest: uploads the streamed `MacroDash.html` + assets, registers the `configure` / `getscores` / `savescore` services, and prints the app URL when it's done:
+
+```
+<SAS Viya base>/SASJobExecution?_FILE=/your/viya/folder/services/MacroDash.html
+```
+
+Open that URL and the game loads. On first visit you'll get the in-game **configuration screen** — pick a results folder for the leaderboard (a physical folder SAS can write `scores.sas7bdat` to), optionally choose the compute context and a `runAsTask` / `useComputeApi` execution mode, and submit. The `configure` service writes `settings.sas` into your apploc and flips `configured="true"` in the streamed `MacroDash.html`, so every subsequent load skips setup and the leaderboard is live for everyone.
+
+### Deploy from source / to other platforms
+
+The release artefact is built by CI from `sasjs/` on every push to `main`. To build and deploy directly from a checkout (e.g. for SAS 9 or SASjs Server, or to push to Viya without the release script), the targets live in `sasjs/sasjsconfig.json`:
+
+```bash
+sasjs cbd -t viya      # or: sas9 | server
+```
+
+`sasjs cbd` compiles the macros + services, builds the streaming web bundle, and deploys a service pack to the target's `appLoc` in one shot. The `serverUrl` is left blank in the shipped config — set it to your own SAS Viya / SASjs Server instance (and adjust `appLoc`, `contextName`, etc.) before deploying. The public game on [dash.sasjs.io](https://dash.sasjs.io) is the backend-free GitHub Pages build.
+
 ## Local development (no SAS required)
 
 ```bash
@@ -57,34 +85,6 @@ To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 `.github/workflows/pages.yml` deploys the static game on every push to `main`: `npm ci` (regenerates the gitignored `src/sasjs.js`), `npm test`, then publishes `src/`. With no SAS server reachable the game simply runs in localStorage mode (personal best, no leaderboard). The public game runs at [dash.sasjs.io](https://dash.sasjs.io) via the `src/CNAME` custom domain.
 
 One-time repo setup: Settings - Pages - Source = "GitHub Actions".
-
-## Deploy to SAS Viya (one line, no install)
-
-Every release ships a single self-contained deploy script — `macro-dash-viya.sas` — that streams the frontend and installs the backend services straight onto your SAS Drive. No Node, no `@sasjs/cli`, no build step: run it from SAS Studio, SAS Enterprise Guide, or any batch SAS session.
-
-```sas
-%let apploc=/your/viya/folder;
-filename md url "https://github.com/sasjs/macro-dash/releases/latest/download/macro-dash-viya.sas";
-%inc md;
-```
-
-That's the whole deployment. Set `apploc` to wherever you want the app to live on Drive (it's created if it doesn't exist), and the script does the rest: uploads the streamed `MacroDash.html` + assets, registers the `configure` / `getscores` / `savescore` services, and prints the app URL when it's done:
-
-```
-<SAS Viya base>/SASJobExecution?_FILE=/your/viya/folder/services/MacroDash.html
-```
-
-Open that URL and the game loads. On first visit you'll get the in-game **configuration screen** — pick a results folder for the leaderboard (a physical folder SAS can write `scores.sas7bdat` to), optionally choose the compute context and a `runAsTask` / `useComputeApi` execution mode, and submit. The `configure` service writes `settings.sas` into your apploc and flips `configured="true"` in the streamed `MacroDash.html`, so every subsequent load skips setup and the leaderboard is live for everyone. To reconfigure later, just revisit the config screen.
-
-### Deploy from source / to other platforms
-
-The release artefacts are built by CI from `sasjs/` on every push to `main`. To build and deploy directly from a checkout (e.g. for SASjs Server or SAS 9, or to push to Viya without the release script), the targets live in `sasjs/sasjsconfig.json`:
-
-```bash
-sasjs cbd -t viya      # or: server | sas9
-```
-
-`sasjs cbd` compiles the macros + services, builds the streaming web bundle, and deploys a service pack to the target's `appLoc` in one shot. The `server` target points at the public [sas.4gl.io](https://sas.4gl.io) SASjs Server instance; the public game on [dash.sasjs.io](https://dash.sasjs.io) is the backend-free GitHub Pages build.
 
 ---
 

@@ -32,7 +32,7 @@
     },
     {
       "name": "viya",
-      "serverUrl": "https://nextviya.emea.sas.com",
+      "serverUrl": "",
       "serverType": "SASVIYA",
       "httpsAgentOptions": {
         "allowInsecureRequests": false
@@ -50,7 +50,7 @@
     },
     {
       "name": "server",
-      "serverUrl": "https://sas.4gl.io",
+      "serverUrl": "",
       "serverType": "SASJS",
       "httpsAgentOptions": {
         "allowInsecureRequests": false

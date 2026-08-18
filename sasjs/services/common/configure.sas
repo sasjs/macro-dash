@@ -7,17 +7,20 @@
   configured="false" attribute in the streamed frontend to "true" - on
   SASjs Server via Drive API on index.html, on Viya via a filesrvc fileref on
   MacroDash.html (same pass that stamps the chosen compute context, runAsTask
-  and useComputeApi) - so the page knows immediately on load.
+  and useComputeApi), on SAS 9 by rewriting the clickme STP source (the
+  streamed frontend IS the STP source code in metadata) - so the page knows
+  immediately on load.
 
   Input: work.config (dataset) - one row, column rootdir = target folder for
   scores.sas7bbat
 
   <h4> SAS Macros </h4>
   @li md_init.sas
-  @li ms_getfile.sas
   @li mf_getplatform.sas
   @li mf_existvar.sas
   @li mf_getuniquefileref.sas
+  @li mm_getstpcode.sas
+  @li mm_updatestpsourcecode.sas
   @li mf_mkdir.sas
   @li mp_abort.sas
   @li mx_createfile.sas
@@ -122,8 +125,9 @@ libname SB "&md_rootdir";
   live on SASjs Drive (rewrite index.html in place); on Viya the web
   content is compiled into the stream service itself (stamp MacroDash.html
   via a filesrvc fileref, in the same pass stamping the chosen compute
-  context, runAsTask and useComputeApi).  Non-fatal on failure: the
-  configuration itself is already saved by this point. */
+  context, runAsTask and useComputeApi); on SAS 9 the streamed frontend IS
+  the clickme STP source (rewrite it in metadata).  Non-fatal on failure:
+  the configuration itself is already saved by this point. */
 %macro md_stamp_frontend();
 %global md_stamp_failed;
 %let md_stamp_failed=0;
@@ -199,6 +203,68 @@ libname SB "&md_rootdir";
     delete mdhtml;
   quit;
   filename &mdhtml_fref clear;
+%end;
+%else %if %mf_getplatform()=SAS9 or %mf_getplatform()=SASMETA %then %do;
+  /* SAS 9 has no file concept - the streamed frontend is the clickme STP
+    at <apploc>/services/clickme, whose source code IS the HTML.  Fetch it
+    with mm_getstpcode, rewrite the attributes, write it back with
+    mm_updatestpsourcecode.  Non-fatal on failure: the configuration itself
+    is already saved by this point. */
+  %local mdhtml_stp mdhtml_in;
+  %let mdhtml_stp=&apploc/services/clickme;
+  %let mdhtml_in=%mf_getuniquefileref();
+  filename &mdhtml_in temp lrecl=32767;
+
+  %mm_getstpcode(tree=&apploc/services,name=clickme,outref=&mdhtml_in)
+
+  data mdhtml;
+    infile &mdhtml_in lrecl=32767 truncover;
+    input;
+    length line $32767;
+    line=_infile_;
+  run;
+
+  data _null_;
+    set mdhtml end=eof;
+    line=prxchange('s/configured="false"/configured="true"/i',-1,line);
+    %if %length(&md_contextname)>0 %then %do;
+    line=prxchange(cats('s|contextname="[^"]*"|contextname="'
+      ,symget('md_contextname'),'"|i'),-1,line);
+    %end;
+    %if %length(&md_runastask)>0 %then %do;
+    line=prxchange(cats('s|runastask="[^"]*"|runastask="'
+      ,symget('md_runastask'),'"|i'),-1,line);
+    %end;
+    %if %length(&md_usecomputeapi)>0 %then %do;
+    line=prxchange(cats('s|usecomputeapi="[^"]*"|usecomputeapi="'
+      ,symget('md_usecomputeapi'),'"|i'),-1,line);
+    %end;
+    file &mdhtml_in lrecl=32767;
+    put line;
+  run;
+
+  %mm_updatestpsourcecode(stp=&mdhtml_stp,stpcode=&mdhtml_in)
+
+  %if &syscc ne 0 %then
+    %put WARNING: &_program: unable to stamp the clickme STP;
+
+  /* verify the stamp will land: confirm the source actually contained
+    configured="false" (so the prxchange had something to match). */
+  data _null_;
+    set mdhtml end=eof;
+    retain found 0;
+    if find(line,'configured="false"') then found=1;
+    if eof and not found then do;
+      call symputx('md_stamp_failed',1);
+      put 'ERROR: clickme STP has no configured="false" attribute'
+        / ' to stamp - check the deployed STP';
+    end;
+  run;
+
+  proc datasets lib=work nolist nowarn;
+    delete mdhtml;
+  quit;
+  filename &mdhtml_in clear;
 %end;
 %mend md_stamp_frontend;
 %md_stamp_frontend()

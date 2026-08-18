@@ -13,6 +13,7 @@
   @li mf_getapploc.sas
   @li mf_getplatform.sas
   @li mf_mkdir.sas
+  @li mm_getstpcode.sas
   @li mfv_existfile.sas
   @li mp_init.sas
   @li ms_getfile.sas
@@ -65,6 +66,26 @@ options lrecl=32767;
   %if &md_valid=1 %then %do;
     %inc mdconfg /source2;
   %end;
+%end;
+%else %if %mf_getplatform()=SAS9 or %mf_getplatform()=SASMETA %then %do;
+  /* SAS 9 has no file concept - settings.sas is a type 2 STP whose source
+  code IS the settings.  Fetch it with mm_getstpcode; a missing STP is
+  not an error (unconfigured app). */
+  %put &sysmacroname: fetching remote settings (SAS 9 STP);
+  filename mdconfg temp lrecl=32767;
+  %mm_getstpcode(tree=&apploc,name=settings,outref=mdconfg)
+  %if &syscc=0 %then %do;
+    %local md_valid; %let md_valid=0;
+    data _null_;
+      infile mdconfg obs=10 end=eof;
+      input;
+      if index(_infile_,'%let md_rootdir') then call symputx('md_valid',1);
+    run;
+    %if &md_valid=1 %then %do;
+      %inc mdconfg /source2;
+    %end;
+  %end;
+  filename mdconfg clear;
 %end;
 
 /* when configured, assign the results library */
