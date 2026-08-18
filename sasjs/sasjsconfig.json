@@ -10,11 +10,6 @@
   "macroFolders": [
     "sasjs/macros"
   ],
-  "jobConfig": {
-    "jobFolders": [
-      "sasjs/jobs/common"
-    ]
-  },
   "serviceConfig": {
     "serviceFolders": [
       "sasjs/services/common"
@@ -43,7 +38,7 @@
         "allowInsecureRequests": false
       },
       "appLoc": "/Users/viyademo18/macrodash",
-      "contextName": "SAS Job Execution compute context"
+      "contextName": "SAS Studio compute context"
     },
     {
       "name": "sas9",

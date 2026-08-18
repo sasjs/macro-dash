@@ -4,11 +4,18 @@
   @details Fetches settings (unless already provided), creates the results
   directory and assigns the SB libref when configured.
 
+  The settings are a plain FILE (settings.sas, a single %let statement)
+  written directly under the apploc by the configure service
+  (%mx_createfile).  There is no deployed settings job - if the file does
+  not exist the app is simply unconfigured.
+
   <h4> SAS Macros </h4>
   @li mf_getapploc.sas
+  @li mf_getplatform.sas
   @li mf_mkdir.sas
+  @li mfv_existfile.sas
   @li mp_init.sas
-  @li mx_getcode.sas
+  @li ms_getfile.sas
 
   (%webout is auto-packaged by the SASjs compiler - no @li needed)
 
@@ -33,15 +40,31 @@
 /* configure lrecl */
 options lrecl=32767;
 
-/* get Macro Dash settings */
+/* get Macro Dash settings (a plain file under the apploc, written by the
+  configure service).  Missing file = unconfigured - not an error. */
 %if %length(&sb_rootdir)>0 %then %do;
   /* nothing - the settings have already been made (eg autoexec) */
 %end;
-%else %if %scan(&_program,-1,/) ne settings %then %do;
-  /* calling settings from settings would be an infinite loop! */
+%else %if %mf_getplatform()=VIYA %then %do;
+  %if %mfv_existfile(&apploc/settings.sas)=1 %then %do;
+    %put &sysmacroname: fetching remote settings;
+    filename sbconfg filesrvc folderpath="&apploc" filename="settings.sas";
+    %inc sbconfg /source2;
+  %end;
+%end;
+%else %if %mf_getplatform()=SASJS %then %do;
   %put &sysmacroname: fetching remote settings;
-  %mx_getcode(&apploc/jobs/common/settings,outref=sbconfg)
-  %inc sbconfg /source2;
+  %ms_getfile(&apploc/settings.sas, outref=sbconfg)
+  /* a missing file returns a JSON error body - only %inc real settings */
+  %local sb_valid; %let sb_valid=0;
+  data _null_;
+    infile sbconfg obs=10 end=eof;
+    input;
+    if index(_infile_,'%let sb_rootdir') then call symputx('sb_valid',1);
+  run;
+  %if &sb_valid=1 %then %do;
+    %inc sbconfg /source2;
+  %end;
 %end;
 
 /* when configured, assign the results library */

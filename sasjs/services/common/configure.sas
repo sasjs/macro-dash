@@ -2,8 +2,8 @@
   @file
   @brief Configure the Macro Dash results folder
   @details Called from the in-game configuration screen.  Validates the
-  chosen folder (creates it if needed, checks it is writable), then rewrites
-  the settings job so the choice persists for all users.  On SASjs Server it
+  chosen folder (creates it if needed, checks it is writable), then writes
+  the settings file so the choice persists for all users.  On SASjs Server it
   also flips the configured="false" attribute in the streamed index.html
   (on SASjs Drive) to "true", so the page knows immediately on load.
 
@@ -18,7 +18,6 @@
   @li mf_getuniquefileref.sas
   @li mf_mkdir.sas
   @li mp_abort.sas
-  @li mv_deletejes.sas
   @li mx_createfile.sas
 **/
 
@@ -36,18 +35,28 @@ data _null_;
   call symputx('rootdir',rootdir);
 run;
 
-/* optional runastask flag (Viya only) - stamped into MacroDash.html */
-%global sb_runastask;
+/* optional runastask / usecomputeapi flags (Viya only) - stamped into
+  MacroDash.html so future sessions default to the chosen execution mode.
+  usecomputeapi is NOT an automatic variable - the frontend sends it as a
+  column on the config table. */
+%global sb_runastask sb_usecomputeapi;
 %let sb_runastask=;
-%macro sb_read_runastask();
+%let sb_usecomputeapi=;
+%macro sb_read_optflags();
 %if %mf_existvar(work.config,runastask) %then %do;
   data _null_;
     set work.config;
     call symputx('sb_runastask',runastask);
   run;
 %end;
-%mend sb_read_runastask;
-%sb_read_runastask()
+%if %mf_existvar(work.config,usecomputeapi) %then %do;
+  data _null_;
+    set work.config;
+    call symputx('sb_usecomputeapi',usecomputeapi);
+  run;
+%end;
+%mend sb_read_optflags;
+%sb_read_optflags()
 
 %mp_abort(iftrue= (%length(&rootdir)=0)
   ,mac=&_program
@@ -72,16 +81,7 @@ proc sql;
 quit;
 libname sbt clear;
 
-/* persist: rewrite the settings job with the new rootdir.  On Viya the
-  create fails with 409 Conflict when the job already exists (ie any
-  re-configure), so delete it first. */
-%macro sb_delete_settings();
-%if %mf_getplatform()=VIYA %then %do;
-  %mv_deletejes(path=&apploc/jobs/common, name=settings)
-%end;
-%mend sb_delete_settings;
-%sb_delete_settings()
-
+/* persist: write the settings file with the new rootdir. */
 filename sbset temp;
 data _null_;
   file sbset;
@@ -93,7 +93,10 @@ data _null_;
   put "&rootdir" +(-1) ';';
 run;
 
-%mx_createfile(&apploc/jobs/common/settings
+/* The settings are a couple of %let statements - plain FILE content.
+  %mx_createfile stores it directly under the apploc on every platform
+  (no settings job, no jobs folder). */
+%mx_createfile(&apploc/settings.sas
   ,inref=sbset
 )
 
@@ -103,10 +106,11 @@ run;
 libname SB "&sb_rootdir";
 
 /* flip the configured flag in index.html, so the page knows immediately
-  (without a getconfig round trip) that a backend results folder exists.
+  (synchronously, without any service round trip) that a backend results
+  folder exists.
   On SASjs Server the streamed web files live on SASjs Drive, so we can
   rewrite the file in place.  On Viya the web content is compiled into the
-  stream service itself, so the frontend falls back to getconfig there. */
+  stream service itself - maintain the stamp at deploy time there. */
 %macro sb_stamp_configured();
 %if %mf_getplatform()=SASJS %then %do;
   %ms_getfile(&apploc/services/web/index.html, outref=sbhtml)
@@ -155,6 +159,10 @@ libname SB "&sb_rootdir";
     %if %length(&sb_runastask)>0 %then %do;
     line=prxchange(cats('s|runastask="[^"]*"|runastask="'
       ,'&sb_runastask','"|i'),-1,line);
+    %end;
+    %if %length(&sb_usecomputeapi)>0 %then %do;
+    line=prxchange(cats('s|usecomputeapi="[^"]*"|usecomputeapi="'
+      ,'&sb_usecomputeapi','"|i'),-1,line);
     %end;
     put line;
   run;

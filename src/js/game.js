@@ -81,6 +81,9 @@
   // exposed for the on-screen controls (js/controls.js)
   window.MACRODASH_PRESS = press;
   window.MACRODASH_STATE = function () { return state; };
+  // test hooks: read the configurator's text field + status line headlessly
+  window.MACRODASH_CONFIG_INPUT = function () { return configInput; };
+  window.MACRODASH_CONFIG_MSG = function () { return configMsg; };
   // test hook: force a state (used by headless smoke tests)
   window.MACRODASH_FORCE = function (s) {
     if (s === "complete") startComplete();
@@ -272,6 +275,7 @@
   var ctxTest = {}; // context id -> "testing" | "ok" | "fail"
   var currentUser = null; // { id, name } - the account jobs will run as
   var configField = "rootdir"; // which config field has keyboard focus
+  var optionsRow = 0; // options step: 0 = runAsTask, 1 = useComputeApi
   var accounts = [];       // distinct runAs identities from the contexts
   var accountIdx = 0;      // index into the FILTERED account list
   var accountFilter = ""; // search text for the account picker
@@ -343,9 +347,19 @@
         return;
       }
     }
+    if (cfgHits.optionsApi && y >= cfgHits.optionsApi[0] &&
+        y <= cfgHits.optionsApi[1]) {
+      if (backend.getApiMode) {
+        var MODES2 = ["web", "jes", "compute"];
+        backend.setApiMode(
+          MODES2[(MODES2.indexOf(backend.getApiMode()) + 1) % MODES2.length]);
+      }
+      configField = "options"; optionsRow = 0;
+      return;
+    }
     if (cfgHits.options && y >= cfgHits.options[0] && y <= cfgHits.options[1]) {
       backend.setRunAsTask(!backend.isRunAsTask());
-      configField = "options";
+      configField = "options"; optionsRow = 1;
       return;
     }
     if (cfgHits.step4 && y >= cfgHits.step4[0] && y <= cfgHits.step4[1]) {
@@ -388,14 +402,18 @@
       } else if (e.code === "Escape") {
         state = runEnd || "title"; // skip submission
         if (state === "complete") startComplete();
-      } else if (/^[a-zA-Z0-9]$/.test(e.key) && initials.length < 12) {
+      } else if (!e.ctrlKey && !e.metaKey &&
+          /^[a-zA-Z0-9]$/.test(e.key) && initials.length < 12) {
         initials += e.key.toUpperCase();
       }
     } else if (state === "config") {
       // swallow keys we handle so the hosting page (JES chrome) and the
-      // browser itself (e.g. "/" quick-find) never steal them
-      if (e.key.length === 1 || ["Backspace", "Tab", "Enter", "Escape",
-          "ArrowUp", "ArrowDown"].indexOf(e.code) >= 0) {
+      // browser itself (e.g. "/" quick-find) never steal them - but NOT
+      // modifier chords (Ctrl/Cmd+V must reach the browser so the paste
+      // event below fires)
+      if (!e.ctrlKey && !e.metaKey && (e.key.length === 1 ||
+          ["Backspace", "Tab", "Enter", "Escape",
+          "ArrowUp", "ArrowDown"].indexOf(e.code) >= 0)) {
         e.preventDefault(); e.stopPropagation();
       }
       var isViya = backend.isViya && backend.isViya();
@@ -432,7 +450,8 @@
               return c.name === ctxChosen && c.runAs === accountChosen;
             })) ctxChosen = null;
           }
-        } else if (/^[\x20-\x7e]$/.test(e.key) && accountFilter.length < 40) {
+        } else if (!e.ctrlKey && !e.metaKey &&
+            /^[\x20-\x7e]$/.test(e.key) && accountFilter.length < 40) {
           accountFilter += e.key; accountIdx = 0;
         }
       } else if (isViya && configField === "context") {
@@ -458,15 +477,26 @@
               ctxTest[tc.name] = ok ? "ok" : "fail";
             });
           }
-        } else if (/^[\x20-\x7e]$/.test(e.key) && ctxFilter.length < 40) {
+        } else if (!e.ctrlKey && !e.metaKey &&
+            /^[\x20-\x7e]$/.test(e.key) && ctxFilter.length < 40) {
           ctxFilter += e.key; contextIdx = 0;
         }
       } else if (isViya && configField === "options") {
-        // toggles only: Enter / Space / arrows flip the switch
-        if (["Enter", "Space", "ArrowLeft", "ArrowRight", "ArrowUp",
-            "ArrowDown"].indexOf(e.code) >= 0) {
+        // two rows: 0 = api mode (3-way cycle), 1 = runAsTask toggle
+        if (e.code === "ArrowUp" || e.code === "ArrowDown") {
           e._sbHandled = true;
-          backend.setRunAsTask(!backend.isRunAsTask());
+          optionsRow = 1 - optionsRow;
+        } else if (["Enter", "Space", "ArrowLeft", "ArrowRight"]
+            .indexOf(e.code) >= 0) {
+          e._sbHandled = true;
+          if (optionsRow === 0 && backend.getApiMode) {
+            var MODES = ["web", "jes", "compute"];
+            var step2 = e.code === "ArrowLeft" ? -1 : 1;
+            backend.setApiMode(MODES[(MODES.indexOf(backend.getApiMode()) +
+              step2 + MODES.length) % MODES.length]);
+          } else if (optionsRow === 1) {
+            backend.setRunAsTask(!backend.isRunAsTask());
+          }
         }
       } else if (e.code === "Enter") {
         e._sbHandled = true;
@@ -486,7 +516,8 @@
         configInput = configInput.slice(0, -1);
       } else if (e.code === "Escape") {
         state = "title";
-      } else if (/^[\x20-\x7e]$/.test(e.key) && configInput.length < 200) {
+      } else if (!e.ctrlKey && !e.metaKey &&
+          /^[\x20-\x7e]$/.test(e.key) && configInput.length < 200) {
         configInput += e.key;
       }
     } else if (state === "title" && e.code === "KeyC") {
@@ -514,6 +545,42 @@
       } else {
         configField = "rootdir";
       }
+    }
+  });
+
+  /* paste support for the configurator text fields (the CSP-safe canvas UI
+     has no <input>, so we listen for the document-level paste event; the
+     keydown handler above deliberately lets Ctrl/Cmd+V through) */
+  function pasteIntoConfig(txt) {
+    if (!txt) return;
+    // strip newlines and non-printable chars
+    txt = txt.replace(/[^\x20-\x7e]/g, "");
+    var isViya = backend.isViya && backend.isViya();
+    if (isViya && viyaAuth !== "ok") return;
+    if (isViya && configField === "account") {
+      accountFilter = (accountFilter + txt).slice(0, 40); accountIdx = 0;
+    } else if (isViya && configField === "context") {
+      ctxFilter = (ctxFilter + txt).slice(0, 40); contextIdx = 0;
+    } else if (configField === "rootdir") {
+      configInput = (configInput + txt).slice(0, 200);
+    }
+  }
+
+  document.addEventListener("paste", function (e) {
+    if (state !== "config") return;
+    e.preventDefault();
+    pasteIntoConfig((e.clipboardData || window.clipboardData).getData("text"));
+  });
+
+  /* right-click paste: the canvas has no native context menu worth keeping
+     on the config screen, so a right-click reads the clipboard (async
+     Clipboard API - Chrome prompts for permission on first use) and pastes
+     into the focused field. */
+  eng.canvas.addEventListener("contextmenu", function (e) {
+    if (state !== "config") return;
+    e.preventDefault();
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(pasteIntoConfig, function () {});
     }
   });
 
@@ -1133,29 +1200,47 @@
     cfgHits.step3 = stepHeader(3, "RESULTS FOLDER",
       configInput || "(type the path)", !!configInput,
       configField === "rootdir", y);
-    y += 30;
+    y += 34;
     if (configField === "rootdir") {
       cfgHits.fields.rootdir = searchBox(configInput, true, y);
-      y += 30;
+      y += 44; // box is 24px tall + breathing room before the next header
     }
 
-    // ---- STEP 4: options (Viya switches) ----
+    // ---- STEP 4: options (Viya execution switches) ----
+    /* useComputeApi is THREE-state (adapter README):
+       web (null/undefined) | jes (false) | compute (true) */
+    var API_MODES = ["web", "jes", "compute"];
+    var API_LABEL = { web: "JES WEB (reliable)", jes: "JES API (Env Manager)",
+      compute: "COMPUTE API (fast)" };
+    var mode = backend.getApiMode ? backend.getApiMode() : "web";
+    var rat = backend.isRunAsTask();
     cfgHits.step4 = stepHeader(4, "OPTIONS",
-      "runAsTask=" + (backend.isRunAsTask() ? "ON" : "OFF"),
+      API_LABEL[mode].split(" (")[0] +
+        (mode === "web" && rat ? " +task" : ""),
       true, configField === "options", y);
+    cfgHits.options = null; cfgHits.optionsApi = null;
     if (configField === "options") {
       var oy = y + 26;
-      var on = backend.isRunAsTask();
-      ctx.fillStyle = on ? "#43a047" : "#8aa8d8";
       ctx.font = "14px monospace";
       ctx.textAlign = "left";
-      ctx.fillText("> runAsTask (job tasks, _debug=128): " + (on ? "ON " : "OFF"), 60, oy + 14);
-      ctx.textAlign = "center";
+      // row 0: api mode (left/right/enter cycles the three states)
+      ctx.fillStyle = optionsRow === 0 ? "#43a047" : "#8aa8d8";
+      ctx.fillText((optionsRow === 0 ? "> " : "  ") +
+        "API approach: < " + API_LABEL[mode] + " >", 60, oy + 14);
+      cfgHits.optionsApi = [oy, oy + 19];
+      oy += 24;
+      // row 1: runAsTask - only honoured by the adapter in JES WEB mode
+      ctx.fillStyle = mode !== "web" ? "#44597a" :
+        (rat ? "#43a047" : "#8aa8d8");
+      ctx.fillText((optionsRow === 1 ? "> " : "  ") +
+        "runAsTask (_EXECUTIONTASKS, JES WEB only): " + (rat ? "ON " : "OFF"),
+        60, oy + 14);
       cfgHits.options = [oy, oy + 19];
+      ctx.textAlign = "center";
       ctx.fillStyle = "#44597a";
       ctx.font = "11px monospace";
-      ctx.fillText("ENTER / arrows / click toggles", W2, oy + 34);
-      y = oy + 40;
+      ctx.fillText("up/down selects - ENTER / SPACE / left/right / click cycles", W2, oy + 36);
+      y = oy + 44;
     } else {
       y += 26;
     }

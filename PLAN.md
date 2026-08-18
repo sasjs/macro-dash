@@ -28,7 +28,7 @@ Finale: "JOB COMPLETE" celebration animation → high score board (backend leade
 
 ## Backend (optional)
 
-Leaderboard via four services (`getconfig` / `configure` / `getscores` / `savescore`). The `<sasjs configured="...">` attribute in index.html is the config flag — the configure service rewrites the streamed index.html itself. Unconfigured ⇒ no service calls except configure; scores live in localStorage. Local dev uses executable JS mocks on a local @sasjs/server (`npm run devsetup`). See AGENTS.md for the contract details and gotchas.
+Leaderboard via three services (`configure` / `getscores` / `savescore`). The `<sasjs configured="...">` attribute in index.html is the config flag — the configure service rewrites the streamed index.html itself. Unconfigured ⇒ no service calls except configure; scores live in localStorage. Local dev uses executable JS mocks on a local @sasjs/server (`npm run devsetup`). See AGENTS.md for the contract details and gotchas.
 
 ## Tech constraints
 

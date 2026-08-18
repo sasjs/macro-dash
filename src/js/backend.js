@@ -17,18 +17,45 @@
   var el = document.querySelector("sasjs");
   var serverType = (el && el.getAttribute("serverType")) || "SASJS";
 
-  /* debug is always on - the SAS log is too valuable when things break
-     (a failed configure without a log cost us a round trip already) */
-  var debug = true;
+  /* debug on SASjs server gives us the SAS log on failures.  On Viya it
+     must stay OFF: with _debug=128 the JES web app wraps the webout JSON
+     in an HTML page (blob iframe), which the adapter cannot parse - every
+     call then fails even though the service succeeded. */
+  var debug = serverType !== "SASVIYA";
 
   /* Viya compute context, chosen on the setup screen (persisted) */
   var contextName = null;
   try { contextName = localStorage.getItem("macrodash_context"); } catch (e) {}
 
-  /* Viya runAsTask switch (setup screen, persisted; default ON) - the
-     adapter runs jobs with the executionTasks flag and _debug=128 */
-  var runAsTask = true;
-  try { runAsTask = localStorage.getItem("macrodash_runastask") !== "false"; } catch (e) {}
+  /* three-state attribute: "true" -> true, "false" -> false, else undefined */
+  function attr3(name) {
+    var v = el && el.getAttribute(name);
+    return v === "true" ? true : v === "false" ? false : undefined;
+  }
+
+  /* Viya execution options (setup screen; persisted in localStorage, with
+     the attributes stamped into this page by the configure service as the
+     shared default).  Adapter contract (see @sasjs/adapter README) -
+     useComputeApi is THREE-state:
+       - null/undefined = JES web app (most reliable, slowest); the ONLY
+         mode where runAsTask applies (adds _EXECUTIONTASKS=true)
+       - false          = JES API (jobs visible in Environment Manager)
+       - true           = Compute API (fastest, not in Env Manager)
+     We model this as apiMode: "web" | "jes" | "compute". */
+  function apiModeFromAttr() {
+    var v = attr3("useComputeApi");
+    return v === true ? "compute" : v === false ? "jes" : "web";
+  }
+  var apiMode = apiModeFromAttr();
+  try {
+    var am = localStorage.getItem("macrodash_apimode");
+    if (am === "web" || am === "jes" || am === "compute") apiMode = am;
+  } catch (e) {}
+  var runAsTask = attr3("runAsTask") !== false; // default ON (web mode only)
+  try {
+    var rt = localStorage.getItem("macrodash_runastask");
+    if (rt !== null) runAsTask = rt === "true";
+  } catch (e) {}
 
   /* the configure service rewrites index.html itself, flipping this
      attribute - so the page knows synchronously whether it is configured,
@@ -71,8 +98,12 @@
         // user-picked (localStorage) wins; otherwise the attribute stamped
         // into this page by the configure service
         contextName: contextName || (el && el.getAttribute("contextName")) || undefined, // Viya only
-        useComputeApi: !!(el && el.getAttribute("useComputeApi") === "true"), // Viya only
-        runAsTask: serverType === "SASVIYA" ? runAsTask : undefined,
+        // three-state: web -> undefined, jes -> false, compute -> true
+        useComputeApi: serverType !== "SASVIYA" || apiMode === "web"
+          ? undefined : apiMode === "compute",
+        // runAsTask only applies to the JES web approach
+        runAsTask: serverType === "SASVIYA" && apiMode === "web" && runAsTask
+          ? true : undefined,
         debug: debug
       });
       if (sasjs && sasjs.setDebugState) sasjs.setDebugState(debug);
@@ -92,20 +123,24 @@
 
   /* hard timeout on every backend call: when the server is down (or the
      network drops), XHRs to it hang until the TCP timeout (minutes), which
-     would leave the UI waiting.  A hung request degrades to local mode. */
-  var REQUEST_TIMEOUT_MS = 5000;
+     would leave the UI waiting.  A hung request degrades to local mode.
+     On Viya a request spins up a compute session, which can take a minute
+     or more on a cold estate - 5s would declare every call dead.  configure
+     (folder validation + Drive rewrites) gets even longer. */
+  var REQUEST_TIMEOUT_MS = serverType === "SASVIYA" ? 120000 : 5000;
+  var CONFIGURE_TIMEOUT_MS = serverType === "SASVIYA" ? 300000 : 30000;
 
   /* adapter.request() resolves with the webout JSON already unwrapped -
    * tables are arrays of row objects directly on it (including a table
    * named `result`). */
-  function call(service, data, cb) {
+  function call(service, data, cb, timeoutMs) {
     withAdapter(function (a) {
       if (!a) { cb(null); return; }
       var done = false;
       var timer = setTimeout(function () {
         done = true;
         cb(null);
-      }, REQUEST_TIMEOUT_MS);
+      }, timeoutMs || REQUEST_TIMEOUT_MS);
       a.request("services/common/" + service, data)
         .then(function (res) {
           if (done) return;
@@ -203,11 +238,11 @@
     if (serverType !== "SASVIYA") { cb(false); return; }
     var appLoc = (el && el.getAttribute("appLoc")) || "/Public/app/macrodash";
     viyaFetch("/SASJobExecution/?_PROGRAM=" + encodeURIComponent(appLoc +
-        "/services/common/getconfig") + "&_output_type=json&_contextname=" +
+        "/services/common/getscores") + "&_output_type=json&_contextname=" +
         encodeURIComponent(name),
       { method: "POST" },
       function (j, status) {
-        cb(!!(j && (j.config || j._PROGRAM))); // webout JSON came back
+        cb(!!(j && (j.scores || j._PROGRAM))); // webout JSON came back
       });
   }
 
@@ -247,19 +282,28 @@
       try { localStorage.setItem("macrodash_runastask", runAsTask ? "true" : "false"); } catch (e) {}
       sasjs = null; // rebuild the adapter with the new setting
     },
-    isDebug: function () { return debug; },
-    getConfig: function (cb) {
-      call("getconfig", null, function (j) {
-        var row = j && j.config && j.config[0];
-        cb(row ? { configured: !!row.CONFIGURED, rootdir: row.ROOTDIR } : null);
-      });
+    getApiMode: function () { return apiMode; }, // "web" | "jes" | "compute"
+    setApiMode: function (mode) {
+      if (mode !== "web" && mode !== "jes" && mode !== "compute") return;
+      apiMode = mode;
+      try { localStorage.setItem("macrodash_apimode", apiMode); } catch (e) {}
+      sasjs = null; // rebuild the adapter with the new setting
     },
+    isDebug: function () { return debug; },
     configure: function (rootdir, cb) {
       var row = { rootdir: rootdir };
-      if (serverType === "SASVIYA") row.runastask = runAsTask ? "true" : "false";
+      if (serverType === "SASVIYA") {
+        row.runastask = runAsTask ? "true" : "false";
+        /* not an automatic variable - must be sent so the configure
+           service can stamp it into MacroDash.html for future sessions.
+           THREE-state: "true" (compute) / "false" (JES API) / "null"
+           (JES web - the attr3 reader maps anything else to undefined) */
+        row.usecomputeapi = apiMode === "compute" ? "true"
+          : apiMode === "jes" ? "false" : "null";
+      }
       call("configure", { config: [row] }, function (j) {
         cb(j && j.result ? j.result[0] : null);
-      });
+      }, CONFIGURE_TIMEOUT_MS);
     },
     getScores: function (cb) {
       call("getscores", null, function (j) {

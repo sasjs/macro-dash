@@ -20,8 +20,9 @@
     "prepare": "cp node_modules/@sasjs/adapter/index.js src/sasjs.js"
   },
   "devDependencies": {
-    "@sasjs/cli": "^4.17.4",
-    "@sasjs/core": "^5.1.0"
+    "@sasjs/cli": "^4.19.0",
+    "@sasjs/core": "^5.1.0",
+    "playwright": "^1.62.1"
   },
   "dependencies": {
     "@sasjs/adapter": "^4.17.3"

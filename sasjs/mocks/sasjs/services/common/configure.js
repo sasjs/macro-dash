@@ -3,7 +3,7 @@
  * uploaded file): one row, column rootdir.  Like the real service, the
  * folder is validated by actually creating it - the server is local, so
  * rootdir is a real path on this machine.  The choice persists in
- * <drive>/macrodash.settings.json (no /tmp), so getconfig.js reports
+ * <drive>/macrodash.settings.json (no /tmp), so getscores.js reports
  * CONFIGURED=1 afterwards.
  *
  * Like the real service it also flips configured="false" -> "true" in the
@@ -129,6 +129,7 @@ function stampIndexHtml() {
       return fetch(api, { method: 'PATCH', headers: headers, body: form })
     })
     .catch(() => {
-      /* drive unreachable / auth on: harmless, getconfig stays the fallback */
+      /* drive unreachable / auth on: harmless - the page just won't know
+         until the next configure (there is no getconfig service) */
     })
 }
