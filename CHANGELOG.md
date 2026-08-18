@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/sasjs/macro-dash/compare/v1.0.0...v1.1.0) (2026-08-18)
+
+
+### Features
+
+* SAS 9 support for configure (stamp clickme STP) + md_init settings read ([901f59e](https://github.com/sasjs/macro-dash/commit/901f59ea6ec39d89e411b0ca54ed9b8673ecb8c1))
+
 # 1.0.0 (2026-08-18)
 
 
