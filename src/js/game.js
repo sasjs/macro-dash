@@ -81,6 +81,7 @@
   // exposed for the on-screen controls (js/controls.js)
   window.MACRODASH_PRESS = press;
   window.MACRODASH_STATE = function () { return state; };
+  window.MACRODASH_LEVELIDX = function () { return levelIdx; }; // test hook
   // test hooks: read the configurator's text field + status line headlessly
   window.MACRODASH_CONFIG_INPUT = function () { return configInput; };
   window.MACRODASH_CONFIG_MSG = function () { return configMsg; };
@@ -98,6 +99,16 @@
     if (s === "board" || s === "dump") boardT = 0;
     if (s === "title") audio.stopMusic(); // brand click goes "home"
     state = s;
+  };
+  /* test hook: clear all enemies + teleport the player onto the portal,
+   * so the real portal-collision code path fires (level completion). */
+  window.MACRODASH_REACH_PORTAL = function () {
+    if (!portal) return false;
+    enemies.forEach(function (e) { e.dead = true; });
+    player.x = portal.x + portal.w / 2 - player.w / 2;
+    player.y = portal.y + portal.h / 2 - player.h / 2;
+    player.vx = 0; player.vy = 0;
+    return true;
   };
   document.addEventListener("keydown", function (e) {
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Space"].indexOf(e.code) >= 0) e.preventDefault();
@@ -415,6 +426,7 @@
     else if (boardHits.home && x >= boardHits.home[2] && x <= boardHits.home[3] &&
         y >= boardHits.home[0] && y <= boardHits.home[1]) b = "home";
     if (!b) return;
+    clearBoardHash();
     if (b === "again") {
       levelIdx = 0; level = LEVELS[levelIdx]; eng.setLevel(level);
       startPlay(true);
@@ -1017,7 +1029,8 @@
     }
     all.slice(0, max).forEach(function (b, i) {
       var when = fmtWhen(b);
-      var row = b.time.toFixed(1) + "s" + (when ? "  " + when : "");
+      var nm = b.name ? (b.name + "            ").slice(0, 12) : "            ";
+      var row = nm + b.time.toFixed(1) + "s" + (when ? "  " + when : "");
       var best = loadBest();
       var isBest = best && best.time === b.time && best.when === b.when;
       ctx.fillStyle = isBest ? "#ffd54d" : "#dbe7ff";
@@ -1464,7 +1477,7 @@
     }
 
     // auto-advance after ~7s
-    if (compT > 420) { state = "board"; boardT = 0; }
+    if (compT > 420) { setBoardHash(); showBoard(); }
     ctx.textAlign = "left";
   }
 
@@ -1864,7 +1877,7 @@
   document.addEventListener("keydown", function (e) {
     if (e._sbHandled) return; // consumed by the text-entry handler
     // H = HOME (title screen) from the board
-    if (e.code === "KeyH" && !e.repeat && state === "board") { state = "title"; return; }
+    if (e.code === "KeyH" && !e.repeat && state === "board") { clearBoardHash(); state = "title"; return; }
     if (e.repeat || !(e.code === "Enter" || e.code === "KeyR")) return;
     if (state === "title") {
       levelIdx = 0; level = LEVELS[levelIdx]; eng.setLevel(level);
@@ -1878,15 +1891,41 @@
       levelIdx++; level = LEVELS[levelIdx]; eng.setLevel(level);
       startPlay(false); // next level, same run (score/health/clock carry)
     } else if (state === "complete") {
-      state = "board"; boardT = 0; // skip the rest of the animation
+      setBoardHash(); showBoard(); // skip the rest of the animation
     } else if (state === "board") {
       // ENTER / RUN = play again (the primary action); H = home (title)
+      clearBoardHash();
       levelIdx = 0; level = LEVELS[levelIdx]; eng.setLevel(level);
       startPlay(true);
     }
   });
 
   // ---- main loop ----
+  /* hash routing: #scores makes the high-score board a refreshable page.
+   * We only manage the hash for the board state - play/title/etc keep a clean
+   * URL.  On load and on hashchange (back/forward/refresh) we drive state
+   * from the hash; when the game enters the board we set the hash, and clear
+   * it when leaving. */
+  function showBoard() {
+    boardT = 0;
+    playerRank = null;
+    if (backendOn) refreshScores();
+    state = "board";
+  }
+  function applyHash() {
+    if (location.hash === "#scores") showBoard();
+    else if (state === "board") state = "title";
+  }
+  function setBoardHash() {
+    if (location.hash !== "#scores")
+      history.replaceState(null, "", "#scores");
+  }
+  function clearBoardHash() {
+    if (location.hash === "#scores")
+      history.replaceState(null, "", location.pathname + location.search);
+  }
+  window.addEventListener("hashchange", applyHash);
+
   function frame() {
     if (state !== "pause") {
       update();
@@ -1899,5 +1938,6 @@
     }
     requestAnimationFrame(frame);
   }
+  applyHash(); // deep-link: #scores on load shows the board
   frame();
 })();
