@@ -6,6 +6,19 @@
  * existing `npm test` (reachability BFS) style. */
 const { chromium } = require('playwright');
 
+// candidate chromium executables, in priority order: Playwright's bundled
+// (downloaded by `npx playwright install chromium`), then common system
+// paths.  The first that exists is used.
+const SYS_PATHS = ['/usr/bin/chromium', '/usr/bin/chromium-browser',
+  '/usr/bin/google-chrome', '/snap/bin/chromium'];
+let _exe = null;
+function resolveExe() {
+  if (_exe !== null) return _exe;
+  if (process.env.CHROMIUM && require('fs').existsSync(process.env.CHROMIUM)) { _exe = process.env.CHROMIUM; return _exe; }
+  for (const p of SYS_PATHS) if (require('fs').existsSync(p)) { _exe = p; return _exe; }
+  return undefined; // undefined => let Playwright use its bundled chromium
+}
+
 const APP = process.env.MD_APP || 'http://localhost:5000/AppStream/MacroDash/';
 const SRC = process.env.MD_SRC || 'http://localhost:8123/index.html'; // no-backend
 
@@ -16,7 +29,10 @@ function ok(name) { _pass++; results.push(['PASS', name]); console.log('  PASS',
 function bad(name, detail) { _fail++; results.push(['FAIL', name]); console.log('  FAIL', name, detail || ''); }
 
 async function launch(viewport) {
-  const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/usr/bin/chromium' });
+  const opts = {};
+  const exe = resolveExe();
+  if (exe) opts.executablePath = exe;
+  const b = await chromium.launch(opts);
   const ctx = await b.newContext({ viewport: viewport || { width: 640, height: 480 } });
   const p = await ctx.newPage();
   p.on('console', m => { if (m.type() === 'error') console.log('    CONSOLE-ERR', m.text().slice(0, 150)); });
