@@ -4,7 +4,7 @@
 
 ![Macro Dash](screenshot.png)
 
-You are the DATA stepper. Bounce through the WORK library, stomp ERRORs and WARNINGs, collect ampersands, grab the FORMAT 10.2 mushroom for super jumps, and get your report to the portal before the job runs out of steam. One run, all levels - amps, health and the speedrun clock carry over. Finish with 0 ERRORs and 0 WARNINGs for the clean-log stamp, and put your initials on the leaderboard.
+You are the DATA stepper. Bounce through the WORK library, stomp ERRORs and WARNINGs, collect ampersands, grab the FORMAT 10.2 mushroom for super jumps, and get your report to the portal before the job runs out of steam. One run, all levels - amps, health and the speedrun clock carry over. Finish with 0 ERRORs and 0 WARNINGs for the clean-log stamp, and put your name on the leaderboard (your SAS identity in multiplayer mode, or a `SYSUSERID` you enter for local play).
 
 Arrows / WASD to move, Space to jump, hold Shift to RUN. Works on mobile too (on-screen controls).
 
@@ -15,7 +15,7 @@ Macro Dash is a working demonstration of how to craft and deploy **data-powered 
 - A **frontend** (plain HTML/JS canvas, strict CSP, no framework) streamed directly from SAS - no separate web tier to build, secure or maintain.
 - **Backend services written in SAS** (`sasjs/services/`) that receive tables from the browser, run SAS code, and return JSON. The game uses three: `configure`, `getscores`, `savescore` - a complete, persistent, server-side leaderboard.
 - **One codebase, every flavour of SAS**: deploy to SAS Viya, SAS 9 EBI or [SASjs Server](https://github.com/sasjs/server) with a single command (`sasjs cbd`), using [@sasjs/cli](https://github.com/sasjs/cli) and the [@sasjs/core](https://github.com/sasjs/core) macro library.
-- **Graceful degradation**: with no backend reachable, the game falls back to localStorage mode (personal best, no leaderboard) - the same pattern you want in resilient production apps.
+- **Graceful degradation**: with no backend reachable, the game falls back to localStorage mode (personal best-run history with DNF entries and a `SYSUSERID` prompt, no shared leaderboard) - the same pattern you want in resilient production apps.
 
 If you can build this, you can build a data capture form, an approvals workflow, a parameter manager or a reporting portal on your own SAS platform. The [PLAN.md](PLAN.md) and [AGENTS.md](AGENTS.md) files document the design decisions; the services are deliberately small and readable.
 
@@ -37,7 +37,11 @@ That's the whole deployment. Set `apploc` to wherever you want the app to live o
 <SAS Viya base>/SASJobExecution?_FILE=/your/viya/folder/services/MacroDash.html
 ```
 
-Open that URL and the game loads. On first visit you'll get the in-game **configuration screen** — pick a results folder for the leaderboard (a physical folder SAS can write `scores.sas7bdat` to), optionally choose the compute context and a `runAsTask` / `useComputeApi` execution mode, and submit. The `configure` service writes `settings.sas` into your apploc and flips `configured="true"` in the streamed `MacroDash.html`, so every subsequent load skips setup and the leaderboard is live for everyone.
+Open that URL and the game loads. On first visit you'll get the in-game **configuration screen** — pick a results folder for the leaderboard (a physical folder SAS can write `scores.sas7bdat` to), choose the compute context, and pick one of four execution modes (**JES Web**, **JES API**, **Compute API**, **Run As Task**) — each shows the exact `@sasjs/adapter` config object it produces (`{useComputeApi, runAsTask}`), so the trade-off is visible as you choose. The `configure` service writes `settings.sas` into your apploc and flips `configured="true"` in the streamed `MacroDash.html`, so every subsequent load skips setup and the leaderboard is live for everyone. (The configurator is locked once configured — the backend is set up, no need to re-enter.)
+
+### Leaderboard
+
+The high-score board is at `#scores` — a refreshable page (deep-link, reload, browser back all keep you on it). A completed run is ranked by time; a death is recorded as a **DNF** entry (ranked after every finisher, by recency). In multiplayer (backend) mode the run is filed under your SAS identity (`%mf_getuser()`) — no name prompt; in local mode you're asked for a `SYSUSERID`. The board has **PLAY AGAIN** and **HOME** buttons (Enter = play again, H = home). Debug is always on, so press **L** on the config screen to download the SAS log from the `configure` call (the adapter keeps a per-request `logFile`).
 
 ### Deploy from source / to other platforms
 
@@ -62,7 +66,7 @@ That's it. `devsetup` (scripts/devsetup.js) downloads the `@sasjs/server` binary
 
 The script is idempotent - existing downloads and `.env` edits are kept, and an already-running server is reused. Server logs: `tools/sasjs-server/server.log`. (If your shell exports `NODE_OPTIONS`, the bundled Node may reject it - the script already starts the server with `NODE_OPTIONS=""`.)
 
-The four backend services are executable JS mocks (same pattern as react-seed-app / Data Controller), deployed to SASjs Drive where they shadow the `.sas` services. The leaderboard works end-to-end: settings persist on the SASjs Drive (`<drive>/macrodash.settings.json`), scores in the configured rootdir as `scores.json` (the mock analogue of `sb.scores`), and the mock `configure.js` even stamps `configured="true"` into the streamed `index.html` via the Drive API - like the real SAS service. Nothing is written to /tmp.
+The three backend services are executable JS mocks (same pattern as react-seed-app / Data Controller), deployed to SASjs Drive where they shadow the `.sas` services. The leaderboard works end-to-end: settings persist on the SASjs Drive (`<drive>/macrodash.settings.json`), scores in the configured rootdir as `scores.json` (the mock analogue of `sb.scores`), and the mock `configure.js` even stamps `configured="true"` into the streamed `index.html` via the Drive API - like the real SAS service. Nothing is written to /tmp.
 
 ### Day-to-day
 
@@ -78,11 +82,12 @@ To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 
 - `npm start` - static-only serving of `src/` on :8000 (no backend; localStorage mode)
 - `npm test` - reachability test (BFS over engine physics for all levels)
+- `npm run test:e2e` - Playwright e2e suite (5 suites / 24 assertions) against the local @sasjs/server + the no-backend `src/` build; covers the configurator, `#scores` routing, level transitions, DNF entries and the board buttons. Run `npm run devsetup` first.
 - `npm run prepare` - refresh `src/sasjs.js` from `node_modules/@sasjs/adapter`
 
 ## GitHub Pages (backend-free)
 
-`.github/workflows/pages.yml` deploys the static game on every push to `main`: `npm ci` (regenerates the gitignored `src/sasjs.js`), `npm test`, then publishes `src/`. With no SAS server reachable the game simply runs in localStorage mode (personal best, no leaderboard). The public game runs at [dash.sasjs.io](https://dash.sasjs.io) via the `src/CNAME` custom domain.
+`.github/workflows/pages.yml` deploys the static game on every push to `main`: `npm ci` (regenerates the gitignored `src/sasjs.js`), `npm test`, then publishes `src/`. With no SAS server reachable the game simply runs in localStorage mode (personal best-run history, no shared leaderboard). The public game runs at [dash.sasjs.io](https://dash.sasjs.io) via the `src/CNAME` custom domain.
 
 One-time repo setup: Settings - Pages - Source = "GitHub Actions".
 
