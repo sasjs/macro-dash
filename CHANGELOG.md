@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/sasjs/macro-dash/compare/v1.3.1...v1.3.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* record DNF runs on the local-only leaderboard ([0dec29a](https://github.com/sasjs/macro-dash/commit/0dec29ae2da7e646d43531009e1968edc3e76ccc))
+
 ## [1.3.1](https://github.com/sasjs/macro-dash/compare/v1.3.0...v1.3.1) (2026-08-19)
 
 
