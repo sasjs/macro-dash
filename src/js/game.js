@@ -962,17 +962,20 @@
   function endRun() {
     player.newRecord = false;
     runEnd = "dead";
-    state = "dead"; // DNF - no initials prompt
     /* record the DNF run so it shows on the leaderboard ranked after every
     finisher, by recency.  Backend (multiplayer) mode sends it to the SAS
-    service (under the logged-in user); local-only mode writes it to the
-    localStorage best-run history. */
+    service under the logged-in user (mf_getuser) - no initials prompt.
+    Local-only mode writes it to localStorage and prompts for initials
+    (winname), the same way a finish does, so the entry has a name. */
     var entry = { time: null, lvl: levelTimes.slice(), done: false, when: Date.now() };
     if (backendOn) {
       backend.saveScore({ name: "", time: "", score: 0, amps: 0, done: 0 },
         function (res) { if (res) { leaderboard = res.scores; } });
+      state = "dead";
     } else {
       saveRun(entry);
+      initials = "";
+      state = "winname"; // collect initials for the DNF entry
     }
   }
 
@@ -1902,8 +1905,9 @@
       levelIdx = 0; level = LEVELS[levelIdx]; eng.setLevel(level);
       startPlay(true); // fresh run from level 1
     } else if (state === "dead") {
-      state = "dump"; boardT = 0; // the ABEND dump finish page
+      setBoardHash(); state = "dump"; boardT = 0; // the ABEND dump finish page
     } else if (state === "dump") {
+      clearBoardHash();
       levelIdx = 0; level = LEVELS[levelIdx]; eng.setLevel(level);
       startPlay(true); // death ends the run - start again from level 1
     } else if (state === "win") {
