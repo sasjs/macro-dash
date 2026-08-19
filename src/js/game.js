@@ -115,6 +115,13 @@
         (e.clientY - rect0.top) * (eng.worldHeight / rect0.height));
       return;
     }
+    if (state === "board") {
+      var rectb = eng.canvas.getBoundingClientRect();
+      var bx = (e.clientX - rectb.left) * (eng.viewWidth / rectb.width);
+      var by = (e.clientY - rectb.top) * (eng.worldHeight / rectb.height);
+      handleBoardClick(bx, by);
+      return;
+    }
     if (state === "title" || state === "win" || state === "dead" ||
         state === "complete" || state === "board" || state === "dump") {
       document.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter" }));
@@ -273,6 +280,7 @@
   var backendOn = false;
   var leaderboard = [];
   var playerRank = null;
+  var scoresPending = false; // a saveScore is in flight (board shows "saving...")
   var initials = "";
   var configInput = "";
   var configMsg = "";
@@ -292,6 +300,7 @@
   var accountChosen = null;
   // click targets, repopulated every drawConfig (canvas coords)
   var cfgHits = { account: [], context: [], fields: {} };
+  var boardHits = { again: null, home: null }; // board button hit boxes
 
   /* contexts matching the chosen account + search text.  Only contexts
    * that are reusable AND carry a runAs (batch) identity are offered -
@@ -398,6 +407,22 @@
     }
   }
 
+  /* board button hit-testing: PLAY AGAIN restarts, HOME returns to title */
+  function handleBoardClick(x, y) {
+    var b;
+    if (boardHits.again && x >= boardHits.again[2] && x <= boardHits.again[3] &&
+        y >= boardHits.again[0] && y <= boardHits.again[1]) b = "again";
+    else if (boardHits.home && x >= boardHits.home[2] && x <= boardHits.home[3] &&
+        y >= boardHits.home[0] && y <= boardHits.home[1]) b = "home";
+    if (!b) return;
+    if (b === "again") {
+      levelIdx = 0; level = LEVELS[levelIdx]; eng.setLevel(level);
+      startPlay(true);
+    } else {
+      state = "title";
+    }
+  }
+
   function refreshScores() {
     if (!backendOn) return;
     backend.getScores(function (rows) { leaderboard = rows || []; });
@@ -411,6 +436,12 @@
      The only service reachable while unconfigured is configure itself. */
   backendOn = backend.isConfigured ? backend.isConfigured() : false;
   if (backendOn) refreshScores();
+  /* on Viya, fetch the interactive identity up front so the username is
+     available even when the app loaded already-configured (the config
+     wizard only sets it when the user re-enters setup). */
+  if (backendOn && backend.isViya && backend.isViya() && backend.getCurrentUser) {
+    backend.getCurrentUser(function (u) { if (u) currentUser = u; });
+  }
 
   // text entry handler for winname / config states
   document.addEventListener("keydown", function (e) {
@@ -419,13 +450,15 @@
       if (e.code === "Enter") {
         e._sbHandled = true; // don't let the restart handler see this Enter
         if (initials.length > 0) {
-          backend.saveScore({
-            name: initials, time: elapsed(), score: 0, amps: 0
-          }, function (res) {
-            if (res) { leaderboard = res.scores; playerRank = res.rank; }
-          });
+          // local mode: the just-finished run was already saved to
+          // localStorage by finalizeRun() - stamp the entered initials onto
+          // it (the most recent entry), then go to the finale.
+          try {
+            var all = loadBests();
+            if (all.length) all[all.length - 1].name = initials;
+            localStorage.setItem(BEST_KEY, JSON.stringify(all));
+          } catch (e) {}
         }
-        // continue to wherever the run ended (dead / win / complete)
         state = runEnd || "title";
         if (state === "complete") startComplete();
       } else if (e.code === "Backspace") {
@@ -810,8 +843,20 @@
       var final = levelIdx + 1 >= LEVELS.length;
       runEnd = final ? "complete" : "win";
       if (final) finalizeRun(); // only a completed run records a time
-      // backend leaderboard: collect initials first (finale waits)
-      if (final && backendOn) { initials = ""; state = "winname"; }
+      // multiplayer (backend) mode: the SAS service records the run under
+      // the logged-in user (mf_getuser) - no initials prompt, go straight
+      // to the finale.  Local mode keeps the initials prompt (winname) so
+      // the local best-run history has a name.
+      if (final && backendOn) {
+        scoresPending = true;
+        backend.saveScore({ name: "", time: elapsed(), score: 0, amps: 0, done: 1 },
+          function (res) {
+            scoresPending = false;
+            if (res) { leaderboard = res.scores; playerRank = res.rank; }
+          });
+        state = runEnd || "complete";
+        if (state === "complete") startComplete();
+      } else if (final) { initials = ""; state = "winname"; }
       else {
         state = runEnd;
         if (state === "complete") startComplete();
@@ -898,7 +943,14 @@
   function endRun() {
     player.newRecord = false;
     runEnd = "dead";
-    state = "dead"; // DNF - no initials, no leaderboard submission
+    state = "dead"; // DNF - no initials prompt
+    /* multiplayer (backend): record the DNF run too - it ranks after every
+    finisher, by recency.  The board picks it up on the next refresh; we
+    don't transition away on death. */
+    if (backendOn) {
+      backend.saveScore({ name: "", time: "", score: 0, amps: 0, done: 0 },
+        function (res) { if (res) { leaderboard = res.scores; } });
+    }
   }
 
   function elapsed() {
@@ -1418,6 +1470,7 @@
 
   function drawBoard() {
     boardT++;
+    boardHits.again = null; boardHits.home = null;
     var W = eng.viewWidth, H = eng.worldHeight;
     ctx.fillStyle = "#061224";
     ctx.fillRect(0, 0, W, H);
@@ -1441,16 +1494,17 @@
         var me = playerRank === i + 1;
         ctx.fillStyle = me ? "#43a047" : "#dbe7ff";
         ctx.font = (me ? "bold " : "") + "15px monospace";
+        /* DNF rows show DNF instead of a time (finishers sort first) */
+        var timeStr = (s.DONE === 0) ? "DNF" : s.TIME.toFixed(1) + "s";
         var row = (i + 1) + ".      " +
-          (s.NAME + "            " ).slice(0, 12) + "  " +
-          s.TIME.toFixed(1) + "s";
+          (s.NAME + "            " ).slice(0, 12) + "  " + timeStr;
         fitText(row, y, me ? "bold " : "", 15);
       });
     } else {
       // offline: no shared leaderboard - just the local best run
       ctx.fillStyle = "#8aa8d8";
       ctx.font = "13px monospace";
-      ctx.fillText(backendOn ? "no scores yet - be the first!"
+      ctx.fillText(backendOn ? (scoresPending ? "saving run..." : "no scores yet - be the first!")
         : "personal bests (local only)", W / 2, y);
       y += 30;
       y = drawBestHistory(W, y, BEST_MAX);
@@ -1460,11 +1514,16 @@
       ctx.fillText("THIS RUN:  " + elapsed() + "s", W / 2, y);
     }
 
-    if (Math.floor(Date.now() / 500) % 2) {
-      ctx.fillStyle = "#43a047";
-      ctx.font = "bold 16px monospace";
-      ctx.fillText("ENTER / RUN for the title screen", W / 2, 450);
-    }
+    /* two on-screen buttons: PLAY AGAIN (restart) and HOME (title) */
+    var by = 430;
+    boardHits.again = [by - 16, by + 12, W / 2 - 140, W / 2 - 20];
+    boardHits.home = [by - 16, by + 12, W / 2 + 20, W / 2 + 140];
+    ctx.fillStyle = "#43a047";
+    ctx.font = "bold 16px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("\u25B6 PLAY AGAIN", W / 2 - 80, by);
+    ctx.fillStyle = "#4da3ff";
+    ctx.fillText("\u2302 HOME", W / 2 + 80, by);
     ctx.textAlign = "left";
   }
 
@@ -1525,7 +1584,7 @@
       } else {
         ctx.fillStyle = "#8aa8d8";
         ctx.font = "13px monospace";
-        ctx.fillText(backendOn ? "no scores yet - be the first!"
+        ctx.fillText(backendOn ? (scoresPending ? "saving run..." : "no scores yet - be the first!")
           : "personal bests (local only)", W / 2, y);
         y += 26;
         drawBestHistory(W, y, 4);
@@ -1804,6 +1863,8 @@
 
   document.addEventListener("keydown", function (e) {
     if (e._sbHandled) return; // consumed by the text-entry handler
+    // H = HOME (title screen) from the board
+    if (e.code === "KeyH" && !e.repeat && state === "board") { state = "title"; return; }
     if (e.repeat || !(e.code === "Enter" || e.code === "KeyR")) return;
     if (state === "title") {
       levelIdx = 0; level = LEVELS[levelIdx]; eng.setLevel(level);
@@ -1819,7 +1880,9 @@
     } else if (state === "complete") {
       state = "board"; boardT = 0; // skip the rest of the animation
     } else if (state === "board") {
-      state = "title";
+      // ENTER / RUN = play again (the primary action); H = home (title)
+      levelIdx = 0; level = LEVELS[levelIdx]; eng.setLevel(level);
+      startPlay(true);
     }
   });
 

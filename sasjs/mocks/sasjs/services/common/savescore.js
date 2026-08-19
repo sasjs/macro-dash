@@ -1,10 +1,11 @@
 /* Macro Dash mock: services/common/savescore
  * Mirrors savescore.sas.  Input table `savescore` arrives as CSV (inline
- * or uploaded file): one row with columns name,time,score,amps.  The entry
- * is merged into the leaderboard in the configured rootdir (scores.json -
- * the mock analogue of md_rootdir/scores.sas7bdat), sorted by time
- * (fastest first); the full table plus the player's RANK are returned,
- * along with the standard SASjs automatic fields.  No /tmp.
+ * or uploaded file): one row with columns name,time,score,amps,done.  The
+ * entry is merged into the leaderboard in the configured rootdir
+ * (scores.json - the mock analogue of md_rootdir/scores.sas7bdat),
+ * sorted finishers-first by time then DNFs by recency; the full table
+ * plus the player's RANK are returned, along with the standard SASjs
+ * automatic fields.  No /tmp.
  */
 
 const now = new Date()
@@ -86,16 +87,37 @@ try {
 
 let rank = null
 if (rows.length) {
+  const r = rows[0]
+  const done = parseInt(r.DONE, 10) === 1 ? 1 : 0
+  /* missing/empty time => DNF */
+  const tm = (r.TIME === '' || r.TIME === undefined || r.TIME === '.' ||
+              isNaN(parseFloat(r.TIME))) ? null : parseFloat(r.TIME)
+  /* SAS datetime(): seconds since 1960-01-01 (matches the real service's
+  submitted=datetime()).  315619200000ms = 10 years, bridging the JS
+  1970 epoch to the SAS 1960 epoch. */
+  const MS_TEN_YEARS = 315619200000
   scores.push({
-    NAME: rows[0].NAME,
-    TIME: parseFloat(rows[0].TIME),
-    SCORE: parseInt(rows[0].SCORE, 10),
-    AMPS: parseInt(rows[0].AMPS, 10)
+    NAME: r.NAME || 'MOCKUSER',
+    TIME: tm,
+    SCORE: parseInt(r.SCORE, 10) || 0,
+    AMPS: parseInt(r.AMPS, 10) || 0,
+    DONE: done,
+    SUBMITTED: Math.floor((Date.now() + MS_TEN_YEARS) / 1000)
   })
-  scores.sort((a, b) => a.TIME - b.TIME || b.SCORE - a.SCORE)
+  /* finishers first by time (then score); DNFs after, most-recent first */
+  scores.sort((a, b) => {
+    if ((b.DONE || 0) !== (a.DONE || 0)) return (b.DONE || 0) - (a.DONE || 0)
+    if (a.DONE) {
+      return (a.TIME - b.TIME) || (b.SCORE - a.SCORE)
+    }
+    return (b.SUBMITTED - a.SUBMITTED)
+  })
   scores = scores.slice(0, 50)
-  rank = scores.findIndex((s) => s.NAME === rows[0].NAME &&
-    s.TIME === parseFloat(rows[0].TIME)) + 1
+  const mine = scores[scores.length - 1] === undefined ? null :
+    scores.find((s) => s.NAME === (r.NAME || 'MOCKUSER') &&
+      ((r.TIME === '' || r.TIME === undefined) ? s.TIME === null :
+       s.TIME === parseFloat(r.TIME)) && s.DONE === done)
+  rank = mine ? scores.indexOf(mine) + 1 : null
   try {
     fs.writeFileSync(SCORES_FILE, JSON.stringify(scores))
   } catch (e) {

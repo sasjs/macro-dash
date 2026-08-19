@@ -1,8 +1,9 @@
 /**
   @file
   @brief Return the Macro Dash leaderboard
-  @details Top 10 runs by elapsed time (fastest wins), score breaks ties.
-  Returns an empty table when the backend is not configured or no scores
+  @details Top 10 runs.  Finishers (done=1) rank by elapsed time (fastest
+  wins, score breaks ties); DNFs (done=0) follow, most-recent first.  An
+  empty table is returned when the backend is not configured or no scores
   exist yet.
 
   <h4> SAS Macros </h4>
@@ -13,7 +14,7 @@
 %md_init()
 
 data scores;
-  length rank 8 name $12 time 8 score 8 amps 8;
+  length rank 8 name $12 time 8 score 8 amps 8 done 8;
   stop;
 run;
 
@@ -21,10 +22,10 @@ run;
 %if %length(&md_rootdir)>0 and %mf_existds(sb.scores) %then %do;
   proc sql;
     create table scores as
-    select name, time, score, amps,
+    select name, time, score, amps, done,
       monotonic() as rank
     from sb.scores
-    order by time, score desc
+    order by done desc, time, score desc, submitted desc
     ;
   quit;
 
