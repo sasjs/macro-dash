@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/sasjs/macro-dash/compare/v1.2.0...v1.3.0) (2026-08-19)
+
+
+### Features
+
+* multiplayer leaderboard (mf_getuser name, DNF entries) + board buttons ([472f47b](https://github.com/sasjs/macro-dash/commit/472f47b6ad25f5360d3eb592b2bf0f4ab091e759)), closes [hi#score](https://github.com/hi/issues/score)
+
 # [1.2.0](https://github.com/sasjs/macro-dash/compare/v1.1.0...v1.2.0) (2026-08-19)
 
 
