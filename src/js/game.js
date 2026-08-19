@@ -519,7 +519,7 @@
       }
       var isViya = backend.isViya && backend.isViya();
       var filtered = filteredContexts();
-      var FIELDS = isViya ? ["account", "context", "rootdir", "options"] : ["rootdir"];
+      var FIELDS = isViya ? ["account", "context", "options", "rootdir"] : ["rootdir"];
       if (isViya && viyaAuth === "login") {
         if (e.code === "Escape") state = "title";
         else if (e.code === "KeyL") {
@@ -598,12 +598,13 @@
         }
       } else if (e.code === "Enter") {
         e._sbHandled = true;
-        /* after a successful configure, RUN/Enter is a deliberate "go to
-           game" - re-running configure would fail (the stamp already
-           landed), so we leave the config screen instead.  The user stays
-           here after configure so they can view the log first. */
+        /* after a successful configure, RUN/Enter reloads the page so the
+           freshly-stamped configured="true" loads (the backend leaderboard
+           is live, the user is the SAS identity, the configurator is
+           locked).  The user stays here after configure so they can view
+           the log first (L key). */
         if (configDone) {
-          state = "title";
+          location.reload();
           return;
         }
         if (isViya && ctxChosen) backend.setContext(ctxChosen);
@@ -1374,33 +1375,19 @@
       y += 22;
     }
 
-    // ---- STEP 3: results folder ----
-    cfgHits.step3 = stepHeader(3, "RESULTS FOLDER",
-      configInput || "(type the path)", !!configInput,
-      configField === "rootdir", y);
-    y += 34;
-    if (configField === "rootdir") {
-      cfgHits.fields.rootdir = searchBox(configInput, true, y);
-      y += 44; // box is 24px tall + breathing room before the next header
-    }
-
-    // ---- STEP 4: execution option (Viya) ----
+    // ---- STEP 3: execution option (Viya) ----
     /* The adapter's useComputeApi is three-state (web/jes/compute) and
        runAsTask only applies in web mode.  We collapse them into four
        concrete execution strategies the user picks by name: */
     var OPTS = [
       { name: "JES Web",      mode: "web",     task: false,
-        json: "{useComputeApi:null, runAsTask:false}",
-        desc: "reliable, streamed web app" },
+        json: "{useComputeApi:null, runAsTask:false}" },
       { name: "JES API",      mode: "jes",     task: false,
-        json: "{useComputeApi:false, runAsTask:false}",
-        desc: "jobs visible in Environment Manager" },
+        json: "{useComputeApi:false, runAsTask:false}" },
       { name: "Compute API", mode: "compute", task: false,
-        json: "{useComputeApi:true, runAsTask:false}",
-        desc: "fastest, not in Env Manager" },
+        json: "{useComputeApi:true, runAsTask:false}" },
       { name: "Run As Task", mode: "web",     task: true,
-        json: "{useComputeApi:null, runAsTask:true}",
-        desc: "JES web + _EXECUTIONTASKS (batch)" }
+        json: "{useComputeApi:null, runAsTask:true}" }
     ];
     /* derive the currently-selected option from the backend state so the
        highlight matches whatever was stamped/persisted */
@@ -1413,8 +1400,8 @@
     var optLabel = OPTS[(optSel < 0 ?
       (curMode === "web" && curTask ? 3 : curMode === "compute" ? 2 :
        curMode === "jes" ? 1 : 0) : optSel)].name;
-    cfgHits.step4 = stepHeader(4, "EXECUTION",
-      optLabel + (curMode === "web" && !curTask ? "" : ""),
+    cfgHits.step4 = stepHeader(3, "EXECUTION",
+      optLabel,
       true, configField === "options", y);
     cfgHits.options = null; cfgHits.opt = [];
     if (configField === "options") {
@@ -1428,10 +1415,8 @@
         ctx.fillText((sel ? "> " : "  ") + o.name, 60, ry + 14);
         // the adapter config object this option produces (educational)
         ctx.fillStyle = sel ? "#7fd08a" : "#5a7a9e";
-        ctx.font = (sel ? "" : "") + "11px monospace";
+        ctx.font = "11px monospace";
         ctx.fillText(o.json, 175, ry + 14);
-        ctx.fillStyle = sel ? "#7fd08a" : "#44597a";
-        ctx.fillText(o.desc, 380, ry + 14);
         ctx.font = "14px monospace";
         cfgHits.opt.push({ y0: ry, y1: ry + 21, idx: i });
       });
@@ -1443,6 +1428,16 @@
       y = oy + 16;
     } else {
       y += 26;
+    }
+
+    // ---- STEP 4: results folder ----
+    cfgHits.step3 = stepHeader(4, "RESULTS FOLDER",
+      configInput || "(type the path)", !!configInput,
+      configField === "rootdir", y);
+    y += 34;
+    if (configField === "rootdir") {
+      cfgHits.fields.rootdir = searchBox(configInput, true, y);
+      y += 44; // box is 24px tall + breathing room before the next header
     }
 
     // verdict line
@@ -1575,18 +1570,28 @@
           (s.NAME + "            " ).slice(0, 12) + "  " + timeStr;
         fitText(row, y, me ? "bold " : "", 15);
       });
+    } else if (backendOn) {
+      // configured but no scores yet (or a save is in flight) - don't fall
+      // back to local history here, that would leak a stale 'A' entry
+      ctx.fillStyle = "#8aa8d8";
+      ctx.font = "13px monospace";
+      ctx.fillText(scoresPending ? "saving run..." : "no scores yet - be the first!", W / 2, y);
     } else {
       // offline: no shared leaderboard - just the local best run
       ctx.fillStyle = "#8aa8d8";
       ctx.font = "13px monospace";
-      ctx.fillText(backendOn ? (scoresPending ? "saving run..." : "no scores yet - be the first!")
-        : "personal bests (local only)", W / 2, y);
+      ctx.fillText("personal bests (local only)", W / 2, y);
       y += 30;
       y = drawBestHistory(W, y, BEST_MAX);
       y += 30;
-      ctx.fillStyle = "#dbe7ff";
-      ctx.font = "16px monospace";
-      ctx.fillText("THIS RUN:  " + elapsed() + "s", W / 2, y);
+      /* only show the just-finished run's time when a run actually ended
+         (deep-linking to #scores with no run in progress would otherwise
+         tick forever, since elapsed() falls back to performance.now()) */
+      if (player.endT > 0) {
+        ctx.fillStyle = "#dbe7ff";
+        ctx.font = "16px monospace";
+        ctx.fillText("THIS RUN:  " + elapsed() + "s", W / 2, y);
+      }
     }
 
     /* two on-screen buttons: PLAY AGAIN (restart) and HOME (title) */
@@ -1656,11 +1661,14 @@
             s.TIME.toFixed(1) + "s";
           fitText(row, y, me ? "bold " : "", 15);
         });
+      } else if (backendOn) {
+        ctx.fillStyle = "#8aa8d8";
+        ctx.font = "13px monospace";
+        ctx.fillText(scoresPending ? "saving run..." : "no scores yet - be the first!", W / 2, y);
       } else {
         ctx.fillStyle = "#8aa8d8";
         ctx.font = "13px monospace";
-        ctx.fillText(backendOn ? (scoresPending ? "saving run..." : "no scores yet - be the first!")
-          : "personal bests (local only)", W / 2, y);
+        ctx.fillText("personal bests (local only)", W / 2, y);
         y += 26;
         drawBestHistory(W, y, 4);
       }
