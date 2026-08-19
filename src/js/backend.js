@@ -17,11 +17,15 @@
   var el = document.querySelector("sasjs");
   var serverType = (el && el.getAttribute("serverType")) || "SASJS";
 
-  /* debug on SASjs server gives us the SAS log on failures.  On Viya it
-     must stay OFF: with _debug=128 the JES web app wraps the webout JSON
-     in an HTML page (blob iframe), which the adapter cannot parse - every
-     call then fails even though the service succeeded. */
-  var debug = serverType !== "SASVIYA";
+  /* debug ON on every platform: the adapter captures the per-request SAS
+     log (getSasRequests()[n].logFile) which the frontend surfaces as a
+     download link.  As with every SASjs app, the initial configure step
+     ships debug ON so any setup failure (folder permissions, context
+     choice, stamp not landing) can be triaged fast from the downloaded log.
+     On Viya this requires a non-JES-web apiMode (compute or jes) - the JES
+     web path wraps webout JSON in an HTML page when _debug=128, which the
+     adapter cannot parse, so JES web is avoided for now. */
+  var debug = true;
 
   /* Viya compute context, chosen on the setup screen (persisted) */
   var contextName = null;
@@ -145,12 +149,32 @@
         .then(function (res) {
           if (done) return;
           clearTimeout(timer);
+          /* debug is ON, so the adapter keeps a per-request debug log
+             accessible via getSasRequests() (the DC pattern).  The log
+             lives there as `logFile` - capture it for the matching service
+             so callers (configure) can offer a download link. */
+          var saslog = "";
+          try {
+            var reqs = a.getSasRequests && a.getSasRequests();
+            if (reqs && reqs.length) {
+              var link = "services/common/" + service;
+              var match = null;
+              for (var i = reqs.length - 1; i >= 0; i--) {
+                if (reqs[i] && reqs[i].serviceLink === link) { match = reqs[i]; break; }
+              }
+              if (match && typeof match.logFile === "string") saslog = match.logFile;
+            }
+          } catch (e) {}
           /* Viya wraps the webout JSON in a `result` property; SASjs server
              gives the tables directly.  Unwrap only when on Viya - a table
              or property actually NAMED `result` must pass through untouched. */
           if (serverType === "SASVIYA" && res && res.result &&
               typeof res.result === "object" &&
               !Array.isArray(res.result)) res = res.result;
+          if (saslog) {
+            if (typeof res === "object" && res !== null) res.log = saslog;
+            else res = { result: res, log: saslog };
+          }
           cb(res || null);
         })
         .catch(function () {
@@ -306,7 +330,13 @@
         row.contextname = contextName || "";
       }
       call("configure", { config: [row] }, function (j) {
-        cb(j && j.result ? j.result[0] : null);
+        /* the adapter's request() resolves with { result, log, ... } on
+           Viya (log populated when debug is on - pending an adapter fix to
+           ship it without _debug=128 breaking the webout JSON).  Thread
+           the log through so the frontend can offer a download link. */
+        var out = j && j.result ? j.result[0] : null;
+        if (out && j && j.log) out.log = j.log;
+        cb(out);
       }, CONFIGURE_TIMEOUT_MS);
     },
     getScores: function (cb) {

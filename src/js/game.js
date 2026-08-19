@@ -84,6 +84,14 @@
   // test hooks: read the configurator's text field + status line headlessly
   window.MACRODASH_CONFIG_INPUT = function () { return configInput; };
   window.MACRODASH_CONFIG_MSG = function () { return configMsg; };
+  window.MACRODASH_CONFIG_DONE = function () { return configDone; };
+  window.MACRODASH_CONFIG_LOG = function () { return configLog; };
+  // test hook: drive the configurator headlessly (set the active field +
+  // the rootdir text) - used by the Viya smoke test
+  window.MACRODASH_CONFIG_SET = function (field, rootdir) {
+    if (field) configField = field;
+    if (typeof rootdir === "string") configInput = rootdir;
+  };
   // test hook: force a state (used by headless smoke tests)
   window.MACRODASH_FORCE = function (s) {
     if (s === "complete") startComplete();
@@ -268,6 +276,8 @@
   var initials = "";
   var configInput = "";
   var configMsg = "";
+  var configDone = false; // configure succeeded - RUN becomes "go to game"
+  var configLog = ""; // SAS log from the configure response (download link)
   var contexts = null; // Viya compute contexts: null = loading, [] = none
   var contextIdx = 0; // index into the FILTERED context list
   var ctxFilter = ""; // search text for the context picker
@@ -304,6 +314,22 @@
     return accounts.filter(function (a) {
       return !f || a.toLowerCase().indexOf(f) >= 0;
     });
+  }
+
+  /* download the SAS log captured from the configure response.  CSP-safe:
+     a Blob URL with a fixed text type is allowed under default-src 'self'
+     (no data: URIs, no inline scripts).  Revoked after the click. */
+  function downloadLog() {
+    if (!configLog) return;
+    var blob = new Blob([configLog], { type: "text/plain;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "macro-dash-configure.log";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
   function handleConfigClick(x, y) {
@@ -364,6 +390,11 @@
     }
     if (cfgHits.step4 && y >= cfgHits.step4[0] && y <= cfgHits.step4[1]) {
       configField = "options"; return;
+    }
+    /* the "download SAS log" link, shown after configure (success or
+       failure) when a log was captured */
+    if (cfgHits.log && y >= cfgHits.log[0] && y <= cfgHits.log[1]) {
+      downloadLog(); return;
     }
   }
 
@@ -500,18 +531,34 @@
         }
       } else if (e.code === "Enter") {
         e._sbHandled = true;
+        /* after a successful configure, RUN/Enter is a deliberate "go to
+           game" - re-running configure would fail (the stamp already
+           landed), so we leave the config screen instead.  The user stays
+           here after configure so they can view the log first. */
+        if (configDone) {
+          state = "title";
+          return;
+        }
         if (isViya && ctxChosen) backend.setContext(ctxChosen);
         configMsg = "configuring...";
         backend.configure(configInput, function (res) {
           if (res && res.STATUS === "configured") {
             backendOn = true;
             if (backend.setConfigured) backend.setConfigured();
-            configMsg = "NOTE: results folder configured.";
+            configDone = true;
+            configLog = res.log || "";
+            configMsg = "NOTE: results folder configured."
+              + (configLog ? " - press L for the SAS log" : "");
             refreshScores();
           } else {
             configMsg = "ERROR: could not configure (check folder/permissions).";
+            configLog = res && res.log ? res.log : "";
           }
         });
+      } else if (e.code === "KeyL" && configLog) {
+        /* download the SAS log captured from the configure response */
+        e._sbHandled = true;
+        downloadLog();
       } else if (e.code === "Backspace") {
         configInput = configInput.slice(0, -1);
       } else if (e.code === "Escape") {
@@ -523,6 +570,8 @@
     } else if (state === "title" && e.code === "KeyC") {
       configInput = "";
       configMsg = "";
+      configDone = false;
+      configLog = "";
       state = "config";
       // Viya: fetch the compute contexts and the interactive identity, then
       // start by choosing the ACCOUNT (runAs), then the context, then the
@@ -1032,6 +1081,7 @@
     }
 
     cfgHits.account = []; cfgHits.context = []; cfgHits.fields = {};
+    cfgHits.log = null;
     var blink = Math.floor(Date.now() / 500) % 2;
 
     /* a step header: number, title, current value/status.  Clicking it
@@ -1064,6 +1114,28 @@
       return [ly, ly + 24];
     }
 
+    /* post-configure footer: the SAS log download link (when a log was
+       captured) and the contextual next-step hint.  Rendered at yHint
+       (text baseline).  Populates cfgHits.log with the link's hit box. */
+    function drawConfigFooter(yHint) {
+      var ly = yHint;
+      if (configLog) {
+        ctx.fillStyle = "#4da3ff";
+        ctx.font = "bold 12px monospace";
+        ctx.fillText("\u2193 download SAS log", W2, ly);
+        cfgHits.log = [ly - 12, ly + 4];
+        ly += 20;
+      }
+      ctx.fillStyle = configMsg ? "#ffb300" : "#8aa8d8";
+      ctx.font = "12px monospace";
+      var hint = configDone
+        ? "RUN / ENTER to play - ESC to cancel"
+        : (isViya
+            ? "click a step to open it - TAB switches step - ENTER saves - ESC cancels"
+            : "ENTER to save - ESC to cancel");
+      ctx.fillText(configMsg || hint, W2, ly);
+    }
+
     if (!isViya) {
       ctx.fillStyle = "#dbe7ff";
       ctx.font = "13px monospace";
@@ -1080,6 +1152,7 @@
         ctx.fillStyle = "#ffb300";
         ctx.fillText(configMsg, W2, 320);
       }
+      drawConfigFooter(340);
       ctx.textAlign = "left";
       return;
     }
@@ -1256,8 +1329,7 @@
 
     ctx.fillStyle = configMsg ? "#ffb300" : "#8aa8d8";
     ctx.font = "12px monospace";
-    ctx.fillText(configMsg ||
-      "click a step to open it - TAB switches step - ENTER saves - ESC cancels", W2, 462);
+    drawConfigFooter(462);
     ctx.textAlign = "left";
   }
 
