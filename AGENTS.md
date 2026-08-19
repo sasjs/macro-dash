@@ -43,7 +43,8 @@ Hard-won design decisions and platform learnings. Read this before changing the 
 ## Testing / headless verification
 
 - `npm test` = reachability BFS. Browser smoke tests: headless chromium + pixel analysis (glyph bounding boxes by color) was used to fix title-screen layout — the model can't view images, so measure, don't eyeball.
-- `window.MACRODASH_FORCE(state)` and `window.MACRODASH_STATE()` exist as test hooks for driving screens headlessly.
+- `npm run test:e2e` = Playwright e2e suite (`test/e2e/*.test.js`), run by the `tests.yml` workflow on every push/PR. It spins up the local @sasjs/server (whose JS mocks ARE the backend — see "JS mocks" below), serves the no-backend `src/` build on a second port, and drives both through system chromium. Covers: the 4-way configurator (JES Web / JES API / Compute API / Run As Task) + the adapter JSON each option produces, `#scores` hash routing, the level-1→2 transition, DNF entries + the SYSUSERID prompt, and the board's PLAY AGAIN / HOME buttons. The runner auto-starts the SRC server if it's missing.
+- `window.MACRODASH_FORCE(state)` and `window.MACRODASH_STATE()` exist as test hooks for driving screens headlessly; `MACRODASH_FORCE_VIYA(true)` renders the full Viya configurator locally (no SAS calls) so the OPTIONS step can be tested without a Viya deploy; `MACRODASH_REACH_PORTAL()` clears enemies + teleports the player onto the portal (exercises the real level-completion path); `MACRODASH_DIE()` triggers the real death path (where the DNF save lives).
 
 ## Conventions
 

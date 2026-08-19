@@ -16,6 +16,7 @@
 
   var el = document.querySelector("sasjs");
   var serverType = (el && el.getAttribute("serverType")) || "SASJS";
+  var forceViya = false; // test-only: render the Viya configurator locally
 
   /* debug ON on every platform: the adapter captures the per-request SAS
      log (getSasRequests()[n].logFile) which the frontend surfaces as a
@@ -180,7 +181,21 @@
         .catch(function () {
           if (done) return;
           clearTimeout(timer);
-          cb(null);
+          /* even on failure, try to surface the SAS log so the user can
+             diagnose (debug is ON - the adapter keeps logFile) */
+          var saslog = "";
+          try {
+            var reqs = a.getSasRequests && a.getSasRequests();
+            if (reqs && reqs.length) {
+              var link = "services/common/" + service;
+              var match = null;
+              for (var i = reqs.length - 1; i >= 0; i--) {
+                if (reqs[i] && reqs[i].serviceLink === link) { match = reqs[i]; break; }
+              }
+              if (match && typeof match.logFile === "string") saslog = match.logFile;
+            }
+          } catch (e) {}
+          cb(saslog ? { log: saslog, error: true } : null);
         });
     });
   }
@@ -276,7 +291,9 @@
     /* update the in-memory flag after a successful configure() call (the
        page itself is only re-stamped on disk, not reloaded) */
     setConfigured: function () { configured = true; },
-    isViya: function () { return serverType === "SASVIYA"; },
+    isViya: function () { return forceViya || serverType === "SASVIYA"; },
+    /* test-only override: render the Viya configurator locally */
+    forceViya: function (on) { forceViya = !!on; },
     serverUrl: function () { return (el && el.getAttribute("serverUrl")) || ""; },
     /* Viya session check via the adapter (lazy-loads sasjs.js).  Resolves
        with { isLoggedIn, userName } or null on failure. */

@@ -1,0 +1,64 @@
+name: Tests
+
+# Headless e2e test suite: spins up a local @sasjs/server (whose JS mocks
+# act as a fully-functional backend), deploys the app + mocks, serves the
+# no-backend src/ build on a second port, then drives both through a real
+# chromium via Playwright.  Covers: the 4-way configurator (JES Web / JES
+# API / Compute API / Run As Task) + adapter JSON, #scores hash routing,
+# level 1->2 transition, DNF entries + initials, and the board buttons.
+#
+# The reachability BFS (npm test) runs first as a physics/level gate.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # regenerates src/sasjs.js via the prepare script
+      - run: npm ci
+
+      # physics / level sanity gate
+      - run: npm test
+
+      # system chromium for the Playwright suite (we point CHROMIUM at it)
+      - name: Install chromium
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+          which chromium-browser || which chromium
+
+      - name: Start local @sasjs/server + deploy app & mocks
+        run: |
+          npm run devsetup
+          # confirm it's up + configured
+          curl -sS -o /dev/null -w "server: %{http_code}\n" http://localhost:5000/SASjsApi/info
+          curl -sS http://localhost:5000/AppStream/MacroDash/ | grep -o 'configured="[^"]*"'
+
+      # serve the no-backend src/ build on :8123 (the e2e runner also tries
+      # to start it if missing, but starting it here is more reliable)
+      - name: Start no-backend SRC server
+        run: |
+          cd src && python3 -m http.server 8123 &
+          sleep 1
+          curl -sS -o /dev/null -w "src: %{http_code}\n" http://localhost:8123/index.html
+
+      - name: Run e2e suite
+        env:
+          CHROMIUM: chromium-browser
+        run: npm run test:e2e

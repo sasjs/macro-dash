@@ -13,6 +13,7 @@
   "license": "MIT",
   "scripts": {
     "test": "node test/reachability.js",
+    "test:e2e": "node test/e2e/run.js",
     "start": "cd src && python3 -m http.server 8000",
     "devsetup": "node scripts/devsetup.js",
     "deploy": "sasjs cbd -t local",

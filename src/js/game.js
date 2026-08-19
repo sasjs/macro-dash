@@ -84,6 +84,29 @@
   window.MACRODASH_LEVELIDX = function () { return levelIdx; }; // test hook
   // test hooks: read the configurator's text field + status line headlessly
   window.MACRODASH_CONFIG_INPUT = function () { return configInput; };
+  window.MACRODASH_CONFIG_FIELD = function () { return configField; }; // test hook
+  window.MACRODASH_VIYAAUTH = function () { return viyaAuth; }; // test hook
+  /* test hook: render the full Viya configurator locally (no SAS calls) -
+     seeds the contexts/identity/auth so the wizard renders, and forces
+     isViya() true so the 4-step Viya layout (incl. the OPTIONS step) shows.
+     Lets the 4-way execution-option UI be tested without a Viya deploy. */
+  window.MACRODASH_FORCE_VIYA = function (on) {
+    if (on) {
+      backend.forceViya && backend.forceViya(true);
+      contexts = [{ name: 'SAS Compute Context', reusable: true, runAs: 'sasdemo' }];
+      accounts = ['sasdemo'];
+      accountChosen = 'sasdemo';
+      ctxChosen = 'SAS Compute Context';
+      currentUser = { name: 'sasdemo' };
+      viyaAuth = 'ok';
+      configInput = '/tmp/md-test';
+      configField = 'options';
+      configDone = false;
+      state = 'config';
+    } else {
+      backend.forceViya && backend.forceViya(false);
+    }
+  };
   window.MACRODASH_CONFIG_MSG = function () { return configMsg; };
   window.MACRODASH_CONFIG_DONE = function () { return configDone; };
   window.MACRODASH_CONFIG_LOG = function () { return configLog; };
@@ -311,7 +334,7 @@
   var ctxTest = {}; // context id -> "testing" | "ok" | "fail"
   var currentUser = null; // { id, name } - the account jobs will run as
   var configField = "rootdir"; // which config field has keyboard focus
-  var optionsRow = 0; // options step: 0 = runAsTask, 1 = useComputeApi
+  // (the options step uses a derived 4-way highlight, no longer a row var)
   var accounts = [];       // distinct runAs identities from the contexts
   var accountIdx = 0;      // index into the FILTERED account list
   var accountFilter = ""; // search text for the account picker
@@ -400,20 +423,15 @@
         return;
       }
     }
-    if (cfgHits.optionsApi && y >= cfgHits.optionsApi[0] &&
-        y <= cfgHits.optionsApi[1]) {
-      if (backend.getApiMode) {
-        var MODES2 = ["web", "jes", "compute"];
-        backend.setApiMode(
-          MODES2[(MODES2.indexOf(backend.getApiMode()) + 1) % MODES2.length]);
+    for (i = 0; i < cfgHits.opt.length; i++) {
+      var o = cfgHits.opt[i];
+      if (y >= o.y0 && y <= o.y1) {
+        backend.setApiMode(o.idx === 2 ? "compute" :
+          o.idx === 1 ? "jes" : "web");
+        backend.setRunAsTask(o.idx === 3);
+        configField = "options";
+        return;
       }
-      configField = "options"; optionsRow = 0;
-      return;
-    }
-    if (cfgHits.options && y >= cfgHits.options[0] && y <= cfgHits.options[1]) {
-      backend.setRunAsTask(!backend.isRunAsTask());
-      configField = "options"; optionsRow = 1;
-      return;
     }
     if (cfgHits.step4 && y >= cfgHits.step4[0] && y <= cfgHits.step4[1]) {
       configField = "options"; return;
@@ -565,21 +583,18 @@
           ctxFilter += e.key; contextIdx = 0;
         }
       } else if (isViya && configField === "options") {
-        // two rows: 0 = api mode (3-way cycle), 1 = runAsTask toggle
+        // single 4-way list: up/down moves the highlight, Enter/click picks
         if (e.code === "ArrowUp" || e.code === "ArrowDown") {
           e._sbHandled = true;
-          optionsRow = 1 - optionsRow;
-        } else if (["Enter", "Space", "ArrowLeft", "ArrowRight"]
-            .indexOf(e.code) >= 0) {
+          var cur = (backend.getApiMode() === "web" && backend.isRunAsTask()) ? 3
+            : backend.getApiMode() === "compute" ? 2
+            : backend.getApiMode() === "jes" ? 1 : 0;
+          var ns = (cur + (e.code === "ArrowDown" ? 1 : -1) + 4) % 4;
+          backend.setApiMode(ns === 2 ? "compute" : ns === 1 ? "jes" : "web");
+          backend.setRunAsTask(ns === 3);
+        } else if (e.code === "Enter" || e.code === "Space") {
           e._sbHandled = true;
-          if (optionsRow === 0 && backend.getApiMode) {
-            var MODES = ["web", "jes", "compute"];
-            var step2 = e.code === "ArrowLeft" ? -1 : 1;
-            backend.setApiMode(MODES[(MODES.indexOf(backend.getApiMode()) +
-              step2 + MODES.length) % MODES.length]);
-          } else if (optionsRow === 1) {
-            backend.setRunAsTask(!backend.isRunAsTask());
-          }
+          configField = "rootdir"; // ready to save
         }
       } else if (e.code === "Enter") {
         e._sbHandled = true;
@@ -603,12 +618,14 @@
               + (configLog ? " - press L for the SAS log" : "");
             refreshScores();
           } else {
-            configMsg = "ERROR: could not configure (check folder/permissions).";
             configLog = res && res.log ? res.log : "";
+            configMsg = "ERROR: could not configure (check folder/permissions)."
+              + (configLog ? " - press L for the SAS log" : "");
           }
         });
-      } else if (e.code === "KeyL" && configLog) {
-        /* download the SAS log captured from the configure response */
+      } else if (e.code === "KeyL") {
+        /* download the SAS log (or the raw response) from the configure call.
+           Always available after a configure attempt - debug is ON. */
         e._sbHandled = true;
         downloadLog();
       } else if (e.code === "Backspace") {
@@ -619,7 +636,8 @@
           /^[\x20-\x7e]$/.test(e.key) && configInput.length < 200) {
         configInput += e.key;
       }
-    } else if (state === "title" && e.code === "KeyC") {
+    } else if (state === "title" && e.code === "KeyC" && !backendOn) {
+      // locked once configured - the backend is set up, no need to re-enter
       configInput = "";
       configMsg = "";
       configDone = false;
@@ -1366,41 +1384,63 @@
       y += 44; // box is 24px tall + breathing room before the next header
     }
 
-    // ---- STEP 4: options (Viya execution switches) ----
-    /* useComputeApi is THREE-state (adapter README):
-       web (null/undefined) | jes (false) | compute (true) */
-    var API_MODES = ["web", "jes", "compute"];
-    var API_LABEL = { web: "JES WEB (reliable)", jes: "JES API (Env Manager)",
-      compute: "COMPUTE API (fast)" };
-    var mode = backend.getApiMode ? backend.getApiMode() : "web";
-    var rat = backend.isRunAsTask();
-    cfgHits.step4 = stepHeader(4, "OPTIONS",
-      API_LABEL[mode].split(" (")[0] +
-        (mode === "web" && rat ? " +task" : ""),
+    // ---- STEP 4: execution option (Viya) ----
+    /* The adapter's useComputeApi is three-state (web/jes/compute) and
+       runAsTask only applies in web mode.  We collapse them into four
+       concrete execution strategies the user picks by name: */
+    var OPTS = [
+      { name: "JES Web",      mode: "web",     task: false,
+        json: "{useComputeApi:null, runAsTask:false}",
+        desc: "reliable, streamed web app" },
+      { name: "JES API",      mode: "jes",     task: false,
+        json: "{useComputeApi:false, runAsTask:false}",
+        desc: "jobs visible in Environment Manager" },
+      { name: "Compute API", mode: "compute", task: false,
+        json: "{useComputeApi:true, runAsTask:false}",
+        desc: "fastest, not in Env Manager" },
+      { name: "Run As Task", mode: "web",     task: true,
+        json: "{useComputeApi:null, runAsTask:true}",
+        desc: "JES web + _EXECUTIONTASKS (batch)" }
+    ];
+    /* derive the currently-selected option from the backend state so the
+       highlight matches whatever was stamped/persisted */
+    var curMode = backend.getApiMode ? backend.getApiMode() : "web";
+    var curTask = backend.isRunAsTask();
+    var optSel = (curMode === "web" && curTask) ? 3
+      : curMode === "compute" ? 2
+      : curMode === "jes" ? 1 : 0;
+    if (configField !== "options") optSel = -1; // nothing highlighted
+    var optLabel = OPTS[(optSel < 0 ?
+      (curMode === "web" && curTask ? 3 : curMode === "compute" ? 2 :
+       curMode === "jes" ? 1 : 0) : optSel)].name;
+    cfgHits.step4 = stepHeader(4, "EXECUTION",
+      optLabel + (curMode === "web" && !curTask ? "" : ""),
       true, configField === "options", y);
-    cfgHits.options = null; cfgHits.optionsApi = null;
+    cfgHits.options = null; cfgHits.opt = [];
     if (configField === "options") {
       var oy = y + 26;
       ctx.font = "14px monospace";
       ctx.textAlign = "left";
-      // row 0: api mode (left/right/enter cycles the three states)
-      ctx.fillStyle = optionsRow === 0 ? "#43a047" : "#8aa8d8";
-      ctx.fillText((optionsRow === 0 ? "> " : "  ") +
-        "API approach: < " + API_LABEL[mode] + " >", 60, oy + 14);
-      cfgHits.optionsApi = [oy, oy + 19];
-      oy += 24;
-      // row 1: runAsTask - only honoured by the adapter in JES WEB mode
-      ctx.fillStyle = mode !== "web" ? "#44597a" :
-        (rat ? "#43a047" : "#8aa8d8");
-      ctx.fillText((optionsRow === 1 ? "> " : "  ") +
-        "runAsTask (_EXECUTIONTASKS, JES WEB only): " + (rat ? "ON " : "OFF"),
-        60, oy + 14);
-      cfgHits.options = [oy, oy + 19];
+      OPTS.forEach(function (o, i) {
+        var ry = oy + i * 22;
+        var sel = i === optSel;
+        ctx.fillStyle = sel ? "#43a047" : "#8aa8d8";
+        ctx.fillText((sel ? "> " : "  ") + o.name, 60, ry + 14);
+        // the adapter config object this option produces (educational)
+        ctx.fillStyle = sel ? "#7fd08a" : "#5a7a9e";
+        ctx.font = (sel ? "" : "") + "11px monospace";
+        ctx.fillText(o.json, 175, ry + 14);
+        ctx.fillStyle = sel ? "#7fd08a" : "#44597a";
+        ctx.fillText(o.desc, 380, ry + 14);
+        ctx.font = "14px monospace";
+        cfgHits.opt.push({ y0: ry, y1: ry + 21, idx: i });
+      });
+      oy += OPTS.length * 22;
       ctx.textAlign = "center";
       ctx.fillStyle = "#44597a";
       ctx.font = "11px monospace";
-      ctx.fillText("up/down selects - ENTER / SPACE / left/right / click cycles", W2, oy + 36);
-      y = oy + 44;
+      ctx.fillText("up/down or click to choose - ENTER saves", W2, oy + 8);
+      y = oy + 16;
     } else {
       y += 26;
     }
@@ -1824,7 +1864,7 @@
         "  [ENTER / RUN for the dump]");
     } else if (state === "winname") {
       overlay(runEnd === "dead" ? "ERROR: Job aborted." : "NOTE: PROC PRINT completed.",
-        "ENTER YOUR INITIALS: " + initials + (Math.floor(Date.now() / 500) % 2 ? "_" : " ") +
+        "SYSUSERID: " + initials + (Math.floor(Date.now() / 500) % 2 ? "_" : " ") +
         "   [ENTER saves, ESC skips]");
     } else if (state === "win") {
       var best = loadBest();

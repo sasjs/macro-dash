@@ -11,3 +11,6 @@ artefacts/
 *.webm
 *.png
 test/viya-leaderboard-test.js
+
+# e2e artifacts
+test/e2e/src-server.log
