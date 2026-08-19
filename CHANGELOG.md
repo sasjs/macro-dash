@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/sasjs/macro-dash/compare/v1.4.0...v1.4.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **ci:** use Playwright's bundled chromium + auto-resolve binary path ([9c5b0fc](https://github.com/sasjs/macro-dash/commit/9c5b0fcc4c79893dbeb490e3740b86a8f3b35efc))
+
 # [1.4.0](https://github.com/sasjs/macro-dash/compare/v1.3.3...v1.4.0) (2026-08-19)
 
 
