@@ -1,3 +1,10 @@
+## [1.3.3](https://github.com/sasjs/macro-dash/compare/v1.3.2...v1.3.3) (2026-08-19)
+
+
+### Bug Fixes
+
+* request initials for DNF runs + make the dump screen #scores ([f94270e](https://github.com/sasjs/macro-dash/commit/f94270e18a9d766ed7299752c84c4716cb70a6d3)), closes [#scores](https://github.com/sasjs/macro-dash/issues/scores) [#scores](https://github.com/sasjs/macro-dash/issues/scores) [hi#score](https://github.com/hi/issues/score) [#scores](https://github.com/sasjs/macro-dash/issues/scores)
+
 ## [1.3.2](https://github.com/sasjs/macro-dash/compare/v1.3.1...v1.3.2) (2026-08-19)
 
 
