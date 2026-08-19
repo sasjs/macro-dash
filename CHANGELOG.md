@@ -1,3 +1,10 @@
+## [1.4.2](https://github.com/sasjs/macro-dash/compare/v1.4.1...v1.4.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* configurator layout (execution before results), drop desc suffixes, reload after configure, board counter guard ([b553d3b](https://github.com/sasjs/macro-dash/commit/b553d3bfe830899efe584d34af9ec8df141bbcca)), closes [#scores](https://github.com/sasjs/macro-dash/issues/scores)
+
 ## [1.4.1](https://github.com/sasjs/macro-dash/compare/v1.4.0...v1.4.1) (2026-08-19)
 
 
