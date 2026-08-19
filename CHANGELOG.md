@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/sasjs/macro-dash/compare/v1.3.3...v1.4.0) (2026-08-19)
+
+
+### Features
+
+* configurator 4-way options + e2e suite + CI workflow ([9bee4e7](https://github.com/sasjs/macro-dash/commit/9bee4e71a42144a4d7316183fdeefda815cda8b0)), closes [#scores](https://github.com/sasjs/macro-dash/issues/scores)
+
 ## [1.3.3](https://github.com/sasjs/macro-dash/compare/v1.3.2...v1.3.3) (2026-08-19)
 
 
