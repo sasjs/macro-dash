@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/sasjs/macro-dash/compare/v1.3.0...v1.3.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* show initials on local best-scores board + make #scores a page ([9bd4bfb](https://github.com/sasjs/macro-dash/commit/9bd4bfb9b666ca044a9e710bf1e1c00451cc206b)), closes [#scores](https://github.com/sasjs/macro-dash/issues/scores) [hi#score](https://github.com/hi/issues/score) [hi#score](https://github.com/hi/issues/score) [#scores](https://github.com/sasjs/macro-dash/issues/scores) [#scores](https://github.com/sasjs/macro-dash/issues/scores)
+
 # [1.3.0](https://github.com/sasjs/macro-dash/compare/v1.2.0...v1.3.0) (2026-08-19)
 
 
