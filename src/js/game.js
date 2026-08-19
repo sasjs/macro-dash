@@ -110,6 +110,13 @@
     player.vx = 0; player.vy = 0;
     return true;
   };
+  /* test hook: trigger the real death path (endRun) - the DNF save lives
+   * there, not in the drawDump screen that follows. */
+  window.MACRODASH_DIE = function () {
+    if (state !== "play") return false;
+    endRun();
+    return true;
+  };
   document.addEventListener("keydown", function (e) {
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Space"].indexOf(e.code) >= 0) e.preventDefault();
     press(e.code, true);
@@ -956,12 +963,16 @@
     player.newRecord = false;
     runEnd = "dead";
     state = "dead"; // DNF - no initials prompt
-    /* multiplayer (backend): record the DNF run too - it ranks after every
-    finisher, by recency.  The board picks it up on the next refresh; we
-    don't transition away on death. */
+    /* record the DNF run so it shows on the leaderboard ranked after every
+    finisher, by recency.  Backend (multiplayer) mode sends it to the SAS
+    service (under the logged-in user); local-only mode writes it to the
+    localStorage best-run history. */
+    var entry = { time: null, lvl: levelTimes.slice(), done: false, when: Date.now() };
     if (backendOn) {
       backend.saveScore({ name: "", time: "", score: 0, amps: 0, done: 0 },
         function (res) { if (res) { leaderboard = res.scores; } });
+    } else {
+      saveRun(entry);
     }
   }
 
@@ -982,18 +993,18 @@
       if (!raw) return [];
       var v = JSON.parse(raw);
       if (!Array.isArray(v)) v = [v]; // migrate the old single-best format
-      // deaths are DNF: only completed runs (flagged done) count.  Entries
-      // recorded before the DNF rule have errs/warns or score fields - the
-      // cleanest interpretation is: keep only entries explicitly flagged
-      return v.filter(function (b) { return b && b.done; });
+      // keep both finishes (done:true) and DNFs (done:false) - the board
+      // sorts finishes first by time, DNFs after by recency.  Entries from
+      // before the done flag (legacy) are treated as finishes.
+      return v.filter(function (b) { return b && typeof b === "object"; });
     } catch (e) { return []; }
   }
 
   function loadBest() {
-    var all = loadBests();
-    if (!all.length) return null;
-    // best = fastest time (older entries with scores rank by score below)
-    return all.reduce(function (a, b) { return b.time < a.time ? b : a; });
+    // best = fastest finisher (DNFs never count as a best)
+    var finishes = loadBests().filter(function (b) { return b.done; });
+    if (!finishes.length) return null;
+    return finishes.reduce(function (a, b) { return b.time < a.time ? b : a; });
   }
 
   var BEST_MAX = 10;
@@ -1020,20 +1031,28 @@
   /* shared renderer for the offline personal-best history, newest first.
    * returns the y of the last row drawn */
   function drawBestHistory(W, y, max) {
-    var all = loadBests().slice().sort(function (a, b) { return b.when - a.when; });
+    // finishers first (fastest time first), DNFs after (most recent first) -
+    // the same ranking the backend leaderboard uses
+    var all = loadBests().slice().sort(function (a, b) {
+      if (a.done && !b.done) return -1;
+      if (!a.done && b.done) return 1;
+      if (a.done) return a.time - b.time;       // finishes: fastest first
+      return b.when - a.when;                  // DNFs: most recent first
+    });
     if (!all.length) {
       ctx.fillStyle = "#44597a";
       ctx.font = "13px monospace";
-      ctx.fillText("(no finished runs recorded yet)", W / 2, y);
+      ctx.fillText("(no runs recorded yet)", W / 2, y);
       return y;
     }
+    var best = loadBest();
     all.slice(0, max).forEach(function (b, i) {
       var when = fmtWhen(b);
       var nm = b.name ? (b.name + "            ").slice(0, 12) : "            ";
-      var row = nm + b.time.toFixed(1) + "s" + (when ? "  " + when : "");
-      var best = loadBest();
-      var isBest = best && best.time === b.time && best.when === b.when;
-      ctx.fillStyle = isBest ? "#ffd54d" : "#dbe7ff";
+      var timeStr = b.done ? b.time.toFixed(1) + "s" : "DNF";
+      var row = nm + timeStr + (when ? "  " + when : "");
+      var isBest = best && b.done && best.time === b.time && best.when === b.when;
+      ctx.fillStyle = isBest ? "#ffd54d" : (b.done ? "#dbe7ff" : "#8aa8d8");
       ctx.font = (isBest ? "bold " : "") + "14px monospace";
       ctx.fillText((isBest ? "BEST  " : "      ") + row, W / 2, y);
       y += 20;
