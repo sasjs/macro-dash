@@ -59,10 +59,15 @@ async function state(p) { return p.evaluate(() => window.MACRODASH_STATE()); }
 async function levelIdx(p) { return p.evaluate(() => window.MACRODASH_LEVELIDX()); }
 
 /* reach the level-N portal via the test hook (clears enemies + teleports),
- * letting update() run the real portal-collision code path */
+   letting update() run the real portal-collision code path.  Poll for the
+   win state up to ~3.5s so slow CI runners don't flake a fixed sleep. */
 async function reachPortal(p) {
   await p.evaluate(() => window.MACRODASH_REACH_PORTAL && window.MACRODASH_REACH_PORTAL());
-  await p.waitForTimeout(700);
+  for (let i = 0; i < 35; i++) {
+    const s = await p.evaluate(() => window.MACRODASH_STATE());
+    if (s === 'win' || s === 'complete') return;
+    await p.waitForTimeout(100);
+  }
 }
 
 function summary(name) {
