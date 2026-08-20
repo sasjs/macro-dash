@@ -1,12 +1,15 @@
-name: CI – Test → GitHub Pages → Release
+name: CI – Test → Build Artefacts → Release
 
-# Runs on every push to main (or manual dispatch) in the required order.
-#   1️⃣ Test – reachability BFS (npm test)
-#   2️⃣ GitHub Pages – inject version and publish static site
-#   3️⃣ Release – build artefacts and publish a GitHub release via semantic‑release
+# Fully self-contained pipeline: runs entirely on the runner, builds the
+# deployable artefacts with `sasjs cb` (no deploy step, no SAS/Viya
+# server push), tests the game in a real browser (headless chromium) against
+# the local SASjs Server (whose JS mocks are the backend), and publishes
+# a GitHub release via semantic-release.
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -14,8 +17,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  # needed for the release step (semantic‑release)
-  # (the release job explicitly requests write permission for contents)
+  # needed for the release job (semantic-release writes a release + tags)
 
 concurrency:
   group: ci-macro-dash
@@ -23,7 +25,7 @@ concurrency:
 
 jobs:
   test:
-    name: Test (reachability)
+    name: Tests (browser automation)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,13 +33,42 @@ jobs:
         with:
           node-version: 24
           cache: npm
+
+      # regenerates src/sasjs.js (prepare script copies the adapter UMD)
       - run: npm ci
+
+      # physics / level sanity gate
       - run: npm test
+
+      # headless chromium for the Playwright suite.  Use the bundled
+      # chromium (installed with --with-deps so shared libs are present)
+      # - the documented, reliable path.
+      - name: Install chromium (Playwright)
+        run: npx playwright install --with-deps chromium
+
+      # Cache the downloaded SASjs Server binary across runs.
+      # devsetup is idempotent - the cache just avoids re-downloading it.
+      - name: Cache SASjs Server binary
+        id: cache-server
+        uses: actions/cache@v4
+        with:
+          path: tools/sasjs-server
+          key: ${{ runner.os }}-sasjs-server-${{ hashFiles('scripts/devsetup.js') }}
+
+      - name: Start local @sasjs/server + deploy app & mocks
+        run: |
+          npm run devsetup
+          curl -sS -o /dev/null -w "server: %{http_code}\n" http://localhost:5000/SASjsApi/info
+          curl -sS http://localhost:5000/AppStream/MacroDash/ | grep -o 'configured="[^"]*"'
+
+      - name: Run browser e2e suite
+        run: npm run test:e2e
 
   pages:
     name: Deploy GitHub Pages
     needs: test
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -67,10 +98,59 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v4
 
-  release:
-    name: Release artefacts
-    needs: pages
+  build:
+    name: Build artefacts (sasjs cb)
+    needs: test
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # compile + build the deployable artefacts locally, per platform.
+      # No deploy: `cb` only compiles/builds to sasjsbuild/.  The viya
+      # and server targets just select the config; nothing reaches a server.
+      - name: Build Viya artefact
+        run: |
+          sasjs cb -t viya
+          mkdir -p artefacts
+          cp sasjsbuild/viya.sas artefacts/macro-dash-viya.sas
+          cp sasjsbuild/viya.json.zip artefacts/macro-dash-viya.json.zip
+
+      - name: Build Server artefact
+        run: |
+          sasjs cb -t server
+          mkdir -p artefacts
+          cp sasjsbuild/server.json.zip artefacts/macro-dash-server.json.zip
+
+      - name: Verify build artefacts
+        run: |
+          ls -lh artefacts
+          test -s artefacts/macro-dash-viya.sas
+          test -s artefacts/macro-dash-server.json.zip
+
+      # persist the artefacts for the release job
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macro-dash-artefacts
+          path: artefacts/
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # semantic-release writes the version/CHANGELOG back to the repo,
+    # creates a tag, and publishes a release - needs write on contents.
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,22 +160,15 @@ jobs:
         with:
           node-version: 24
           cache: npm
+
       - run: npm ci
-      # physics / level sanity gate (same test as earlier, ensures no regression)
-      - run: npm test
-      # build deployable artefacts for each platform
-      - run: |
-          mkdir -p artefacts
-          npx sasjs compile -t viya && npx sasjs build -t viya
-          mv sasjsbuild/viya.sas artefacts/macro-dash-viya.sas
-      - run: |
-          npx sasjs compile -t server && npx sasjs build -t server
-          mv sasjsbuild/server.json.zip artefacts/macro-dash-server.json.zip
-      - name: Verify build artefacts
-        run: |
-          test -f artefacts/macro-dash-viya.sas
-          test -f artefacts/macro-dash-server.json.zip
-          ls -lh artefacts/macro-dash-viya.sas artefacts/macro-dash-server.json.zip
+
+      # restore the artefacts built by the build job
+      - uses: actions/download-artifact@v4
+        with:
+          name: macro-dash-artefacts
+          path: artefacts
+
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

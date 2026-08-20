@@ -4,14 +4,26 @@
   "private": true,
   "scripts": {
     "test": "node test/reachability.js",
+    "test:e2e": "node test/e2e/run.js",
+    "start": "cd src && python3 -m http.server 8000",
+    "devsetup": "node scripts/devsetup.js",
+    "deploy": "sasjs cbd -t local",
+    "mock:deploy": "node scripts/deploy-mocks.js",
+    "prepare": "cp node_modules/@sasjs/adapter/index.js src/sasjs.js",
     "semantic-release": "semantic-release"
   },
   "devDependencies": {
-    "semantic-release": "^25.0.9",
+    "@sasjs/cli": "^4.20.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^9.2.6",
-    "conventional-changelog-conventionalcommits": "^7.0.2"
+    "conventional-changelog-conventionalcommits": "^7.0.2",
+    "playwright": "^1.62.1",
+    "semantic-release": "^25.0.9"
+  },
+  "dependencies": {
+    "@sasjs/adapter": "^4.19.0",
+    "@sasjs/core": "^5.1.0"
   },
   "release": {
     "branches": ["main"]
