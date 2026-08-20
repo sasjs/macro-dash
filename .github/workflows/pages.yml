@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: CI, Release & Deploy to GitHub Pages
 
 # Macro Dash is fully playable backend-free: with no SAS server configured,
 # the game degrades to localStorage mode.  So the Pages build is just the
@@ -37,6 +37,32 @@ jobs:
 
       # physics / level sanity gate
       - run: npm test
+
+      # inject version number into homepage
+      - name: Inject version
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
+          const version = pkg.version;
+          const indexPath = 'src/index.html';
+          let html = fs.readFileSync(indexPath,'utf8');
+          html = html.replace('{{VERSION}}', version);
+          fs.writeFileSync(indexPath, html);
+          EOF
+
+      # create GitHub release if on main branch
+      - name: Create Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ fromJSON("$(cat package.json)").version }}
+          name: Release v${{ fromJSON("$(cat package.json)").version }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       - uses: actions/configure-pages@v5
 
