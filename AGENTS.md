@@ -14,7 +14,7 @@ Hard-won design decisions and platform learnings. Read this before changing the 
 
 ## Game design rules
 
-- A game is ONE RUN across all levels: health and the speedrun clock carry over; `init(true)` = new run, `init(false)` = next level. The run is recorded ONLY at death or the final portal (`finalizeRun()`); mid-level portals show the running time. Leaderboards are TIME-ONLY (no score): every finished run must have a clean log, so fastest time wins. There is ONE leaderboard - completed full runs only (deaths are DNF, recorded nowhere; no per-level boards); the last 10 finishes are kept in `macrodash_best` (entries flagged `done: true`).
+- A game is ONE RUN across all levels: health and the speedrun clock carry over; `init(true)` = new run, `init(false)` = next level. The run is recorded ONLY at death or the final portal (`finalizeRun()`); mid-level portals show the running time. Leaderboards are TIME-ONLY (no score): every finished run must have a clean log, so fastest time wins. There is ONE leaderboard - completed full runs only (deaths are DNF; no per-level boards); the last 10 finishes are kept in `macrodash_best` (entries flagged `done: true`).
 - Ampersands (`&`) are pure health pickups (+15 health); they carry no score.
 - Touching an ABORT ends the job instantly (100 damage). Stomping one heals +25 health. The portal refuses while ANY enemy (ERROR/WARNING/ABORT) lives in the level ("ERROR: log not clean").
 - HUD counts live REMAINING ERROR/WARNING enemies per level (counts down as you stomp); hits taken are tracked separately for the finale stamp.
@@ -24,8 +24,7 @@ Hard-won design decisions and platform learnings. Read this before changing the 
 ## Backend contract (frontend ↔ SAS / mock)
 
 - `js/backend.js` wraps `@sasjs/adapter` (`window.SASjs`). Adapter config is read from the hidden `<sasjs>` element in index.html; when streamed by SAS there is no `serverUrl` (same-origin ⇒ CSP-safe).
-- `adapter.request()` resolves with tables as `res.mytable[0].COL` (uppercase columns) on SASjs server, but on **Viya** the webout JSON is wrapped: `res.result.mytable[0].COL`. `call()` in backend.js normalises this — it unwraps `res.result` ONLY when it is a plain object (a table genuinely named `result` is an array and passes through untouched).
-- Services return the standard automatic fields (`_PROGRAM`, `SYSDATE`, `SYSTIME`, `_METAUSER`, `SASJSPROCESSMODE`) plus data tables.
+- Services return the standard automatic fields (`_PROGRAM`, `SYSDATE`, `SYSTIME`, `_METAUSER`, `SYSCC`) plus data tables.
 - Every call has a hard 5s timeout; failure degrades to localStorage mode.
 - **The `<sasjs configured="...">` attribute is the config flag**: the `configure` service rewrites the streamed `index.html` itself — on SASjs Server via Drive API `GET`/`PATCH` (`%ms_getfile`/`%mx_createfile`), on Viya via a `filesrvc` fileref on the Drive-hosted `MacroDash.html` (same stamp pass that writes `contextname`/`runAsTask`/`useComputeApi`) — so the page knows synchronously at load. When unconfigured the frontend calls NO services except `configure` (there is no getconfig service — the stamp IS the answer; when configured, only `getscores`/`savescore` are used). Settings persist as a plain `settings.sas` file directly under the apploc (written by `%mx_createfile`, read back by `md_init` — `filesrvc` fileref on Viya, `%ms_getfile` on SASjs Server); there is no settings job and no `jobs/` folder.
 - Leaderboard only exists with a backend: offline the finale board shows the local best run instead. `savescore` aborts when unconfigured (%mp_abort).
