@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    
-    "test": "npm test",
+    "test": "node test/reachability.js",
     "semantic-release": "semantic-release"
   },
   "devDependencies": {
