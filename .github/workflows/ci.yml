@@ -61,6 +61,17 @@ jobs:
           curl -sS -o /dev/null -w "server: %{http_code}\n" http://localhost:5000/SASjsApi/info
           curl -sS http://localhost:5000/AppStream/MacroDash/ | grep -o 'configured="[^"]*"'
 
+      # Configure the backend before the e2e suite (via the CLI/adapter,
+      # same path the frontend uses).  The board/DNF tests assume a
+      # configured server; the configure service also stamps the served
+      # index.html as configured="true" so the game registers a backend.
+      - name: Configure the local backend
+        run: |
+          ROOTDIR="${GITHUB_WORKSPACE}/tools/sasjs-server/sasjs_root/rootdir"
+          echo "{\"config\":[{\"rootdir\":\"${ROOTDIR}\"}]}" > /tmp/cfg.json
+          sasjs request "services/common/configure" --data /tmp/cfg.json -t local 2>&1
+          curl -sS http://localhost:5000/AppStream/MacroDash/ | grep -o 'configured="[^"]*"'
+
       - name: Run browser e2e suite
         run: npm run test:e2e
 
