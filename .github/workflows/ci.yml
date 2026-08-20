@@ -1,0 +1,102 @@
+name: CI – Test → GitHub Pages → Release
+
+# Runs on every push to main (or manual dispatch) in the required order.
+#   1️⃣ Test – reachability BFS (npm test)
+#   2️⃣ GitHub Pages – inject version and publish static site
+#   3️⃣ Release – build artefacts and publish a GitHub release via semantic‑release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  # needed for the release step (semantic‑release)
+  # (the release job explicitly requests write permission for contents)
+
+concurrency:
+  group: ci-macro-dash
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (reachability)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  pages:
+    name: Deploy GitHub Pages
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # inject version number into homepage (replace {{VERSION}} placeholder)
+      - name: Inject version
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
+          const version = pkg.version;
+          const indexPath = 'src/index.html';
+          let html = fs.readFileSync(indexPath,'utf8');
+          html = html.replace('{{VERSION}}', version);
+          fs.writeFileSync(indexPath, html);
+          EOF
+      # disable Jekyll processing on GitHub Pages
+      - name: Add .nojekyll
+        run: touch src/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: src
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  release:
+    name: Release artefacts
+    needs: pages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # physics / level sanity gate (same test as earlier, ensures no regression)
+      - run: npm test
+      # build deployable artefacts for each platform
+      - run: |
+          mkdir -p artefacts
+          npx sasjs compile -t viya && npx sasjs build -t viya
+          mv sasjsbuild/viya.sas artefacts/macro-dash-viya.sas
+      - run: |
+          npx sasjs compile -t server && npx sasjs build -t server
+          mv sasjsbuild/server.json.zip artefacts/macro-dash-server.json.zip
+      - name: Verify build artefacts
+        run: |
+          test -f artefacts/macro-dash-viya.sas
+          test -f artefacts/macro-dash-server.json.zip
+          ls -lh artefacts/macro-dash-viya.sas artefacts/macro-dash-server.json.zip
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
