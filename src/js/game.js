@@ -1132,7 +1132,8 @@
       // with the ENTER prompt below (canvas bottom is 480)
       leaderboard.slice(0, best ? 2 : 3).forEach(function (s, i) {
         y0 += 16;
-        ctx.fillText((i + 1) + ". " + s.NAME + "  " + s.TIME.toFixed(1) + "s",
+        var t = (s.DONE === 0 || s.TIME == null) ? "DNF" : s.TIME.toFixed(1) + "s";
+        ctx.fillText((i + 1) + ". " + s.NAME + "  " + t,
           eng.viewWidth / 2, y0);
       });
     } else if (!backendOn) {
@@ -1565,7 +1566,7 @@
         ctx.fillStyle = me ? "#43a047" : "#dbe7ff";
         ctx.font = (me ? "bold " : "") + "15px monospace";
         /* DNF rows show DNF instead of a time (finishers sort first) */
-        var timeStr = (s.DONE === 0) ? "DNF" : s.TIME.toFixed(1) + "s";
+        var timeStr = (s.DONE === 0 || s.TIME == null) ? "DNF" : s.TIME.toFixed(1) + "s";
         var row = (i + 1) + ".      " +
           (s.NAME + "            " ).slice(0, 12) + "  " + timeStr;
         fitText(row, y, me ? "bold " : "", 15);
@@ -1658,7 +1659,7 @@
           ctx.fillStyle = me ? "#43a047" : "#dbe7ff";
           var row = (i + 1) + ".      " +
             (s.NAME + "            ").slice(0, 12) + "  " +
-            s.TIME.toFixed(1) + "s";
+            ((s.DONE === 0 || s.TIME == null) ? "DNF" : s.TIME.toFixed(1) + "s");
           fitText(row, y, me ? "bold " : "", 15);
         });
       } else if (backendOn) {

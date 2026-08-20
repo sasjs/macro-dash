@@ -1,10 +1,10 @@
-name: CI – Test → Build Artefacts → Release
+name: CI – Test → Build → Release → Pages
 
 # Fully self-contained pipeline: runs entirely on the runner, builds the
 # deployable artefacts with `sasjs cb` (no deploy step, no SAS/Viya
 # server push), tests the game in a real browser (headless chromium) against
-# the local SASjs Server (whose JS mocks are the backend), and publishes
-# a GitHub release via semantic-release.
+# the local SASjs Server (whose JS mocks are the backend).  semantic-release
+# runs before GitHub Pages so the homepage version matches the release.
 
 on:
   push:
@@ -69,7 +69,7 @@ jobs:
         run: |
           ROOTDIR="${GITHUB_WORKSPACE}/tools/sasjs-server/sasjs_root/rootdir"
           echo "{\"config\":[{\"rootdir\":\"${ROOTDIR}\"}]}" > /tmp/cfg.json
-          sasjs request "services/common/configure" --data /tmp/cfg.json -t local 2>&1
+          npx sasjs request "services/common/configure" --data /tmp/cfg.json -t local 2>&1
           curl -sS http://localhost:5000/AppStream/MacroDash/ | grep -o 'configured="[^"]*"'
 
       - name: Run browser e2e suite
@@ -77,17 +77,21 @@ jobs:
 
   pages:
     name: Deploy GitHub Pages
-    needs: test
+    needs: release
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
+        with:
+          # pick up package.json version bumped by the release job, so the
+          # injected {{VERSION}} on the homepage matches the released version
+          ref: main
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
-      # inject version number into homepage (replace {{VERSION}} placeholder)
+      # inject version number into homepage (replace every {{VERSION}} placeholder)
       - name: Inject version
         run: |
           node - <<'EOF'
@@ -96,7 +100,7 @@ jobs:
           const version = pkg.version;
           const indexPath = 'src/index.html';
           let html = fs.readFileSync(indexPath,'utf8');
-          html = html.replace('{{VERSION}}', version);
+          html = html.replaceAll('{{VERSION}}', version);
           fs.writeFileSync(indexPath, html);
           EOF
       # disable Jekyll processing on GitHub Pages
@@ -127,14 +131,14 @@ jobs:
       # and server targets just select the config; nothing reaches a server.
       - name: Build Viya artefact
         run: |
-          sasjs cb -t viya
+          npx sasjs cb -t viya
           mkdir -p artefacts
           cp sasjsbuild/viya.sas artefacts/macro-dash-viya.sas
           cp sasjsbuild/viya.json.zip artefacts/macro-dash-viya.json.zip
 
       - name: Build Server artefact
         run: |
-          sasjs cb -t server
+          npx sasjs cb -t server
           mkdir -p artefacts
           cp sasjsbuild/server.json.zip artefacts/macro-dash-server.json.zip
 
