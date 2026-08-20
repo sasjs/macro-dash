@@ -107,8 +107,10 @@ function stampIndexHtml() {
 
   let auth = ''
   try {
+    /* _SASJS_TOKENFILE holds the captured request headers, one per line
+     * in "name: value" form.  Pull the authorization header line. */
     auth = fs.readFileSync(_SASJS_TOKENFILE, 'utf8').split('\n')
-      .find((h) => /^authorization:/i.test(h)) || ''
+      .find((h) => h.trim().toLowerCase().startsWith('authorization:')) || ''
   } catch (e) {
     /* no headers captured: server must be running without auth */
   }
