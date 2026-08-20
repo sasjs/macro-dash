@@ -91,7 +91,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      # inject version number into homepage (replace {{VERSION}} placeholder)
+      # inject version number into homepage (replace every {{VERSION}} placeholder)
       - name: Inject version
         run: |
           node - <<'EOF'
@@ -100,7 +100,7 @@ jobs:
           const version = pkg.version;
           const indexPath = 'src/index.html';
           let html = fs.readFileSync(indexPath,'utf8');
-          html = html.replace('{{VERSION}}', version);
+          html = html.replaceAll('{{VERSION}}', version);
           fs.writeFileSync(indexPath, html);
           EOF
       # disable Jekyll processing on GitHub Pages

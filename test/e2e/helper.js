@@ -61,9 +61,14 @@ async function levelIdx(p) { return p.evaluate(() => window.MACRODASH_LEVELIDX()
 /* reach the level-N portal via the test hook (clears enemies + teleports),
    letting update() run the real portal-collision code path.  Poll for the
    win state up to ~3.5s so slow CI runners don't flake a fixed sleep. */
+/* Max frames to poll for the win/complete state after forcibly reaching the
+   portal — generous for slow CI runners where a fixed sleep flaked.
+   Each tick = 100 ms, so MAX_PORTAL_POLL ≈ 3.5 s. */
+const MAX_PORTAL_POLL = 35;
+
 async function reachPortal(p) {
   await p.evaluate(() => window.MACRODASH_REACH_PORTAL && window.MACRODASH_REACH_PORTAL());
-  for (let i = 0; i < 35; i++) {
+  for (let i = 0; i < MAX_PORTAL_POLL; i++) {
     const s = await p.evaluate(() => window.MACRODASH_STATE());
     if (s === 'win' || s === 'complete') return;
     await p.waitForTimeout(100);
