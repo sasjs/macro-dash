@@ -1,3 +1,10 @@
+## [1.5.2](https://github.com/sasjs/macro-dash/compare/v1.5.1...v1.5.2) (2026-11-02)
+
+
+### Bug Fixes
+
+* **ci:** stop package.json shadowing the release config ([c87aaf1](https://github.com/sasjs/macro-dash/commit/c87aaf1c7e5ff0c1e7066e6223835e34ed5ff8d2))
+
 ## [1.4.2](https://github.com/sasjs/macro-dash/compare/v1.4.1...v1.4.2) (2026-08-19)
 
 
