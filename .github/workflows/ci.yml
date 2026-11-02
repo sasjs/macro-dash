@@ -183,6 +183,15 @@ jobs:
           name: macro-dash-artefacts
           path: artefacts
 
+      # semantic-release finds its config with cosmiconfig, which reads a
+      # "release" key in package.json BEFORE .releaserc.json.  A key there
+      # replaces the whole plugin list, so the default plugins publish the
+      # release with no artefacts attached and every
+      # releases/latest/download/<file> URL answers 404.
+      - name: Check the release config is not shadowed
+        run: |
+          node -e "const p=require('./package.json'); if (p.release) { console.error('package.json carries a \"release\" key, which shadows .releaserc.json - the release would publish with no artefacts. Delete the key; the release config lives in .releaserc.json.'); process.exit(1) }"
+
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
