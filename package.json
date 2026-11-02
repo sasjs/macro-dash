@@ -24,8 +24,5 @@
   "dependencies": {
     "@sasjs/adapter": "^4.19.0",
     "@sasjs/core": "^5.1.0"
-  },
-  "release": {
-    "branches": ["main"]
   }
 }
