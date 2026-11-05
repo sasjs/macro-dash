@@ -8,12 +8,13 @@
     "start": "cd src && python3 -m http.server 8000",
     "devsetup": "node scripts/devsetup.js",
     "deploy": "sasjs cbd -t local",
+    "mock:build": "sasjs compile -t mock && sasjs build -t mock",
     "mock:deploy": "node scripts/deploy-mocks.js",
     "prepare": "cp node_modules/@sasjs/adapter/index.js src/sasjs.js",
     "semantic-release": "semantic-release"
   },
   "devDependencies": {
-    "@sasjs/cli": "^4.20.1",
+    "@sasjs/cli": "^6.13.0",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^9.2.6",
