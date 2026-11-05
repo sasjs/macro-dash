@@ -40,6 +40,12 @@ jobs:
       # physics / level sanity gate
       - run: npm test
 
+      # the mock target builds a static site from the same services, under the
+      # CLI this repo pins: a bump that drops the browser build fails here
+      # rather than at the next person who tries it
+      - name: Build the mock site
+        run: npm run mock:build
+
       # headless chromium for the Playwright suite.  Use the bundled
       # chromium (installed with --with-deps so shared libs are present)
       # - the documented, reliable path.
