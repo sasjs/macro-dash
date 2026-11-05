@@ -40,6 +40,12 @@ jobs:
       # physics / level sanity gate
       - run: npm test
 
+      # the mock target builds a static site from the same services, under the
+      # CLI this repo pins: a bump that drops the browser build fails here
+      # rather than at the next person who tries it
+      - name: Build the mock site
+        run: npm run mock:build
+
       # headless chromium for the Playwright suite.  Use the bundled
       # chromium (installed with --with-deps so shared libs are present)
       # - the documented, reliable path.
@@ -52,9 +58,15 @@ jobs:
       # The key names the RELEASE, not the script that downloads it: devsetup
       # fetches `releases/latest`, so hashing the script pins the cache to a
       # version nothing bumps, and the runner keeps starting a binary from
-      # whenever the key was first used. The cached folder also carries
-      # sasjs_root (the drive and the .env), so that state travels with the
-      # binary it was produced by.
+      # whenever the key was first used.
+      #
+      # What is cached is the BINARY, not the folder. tools/sasjs-server also
+      # holds sasjs_root - the drive, the sessions, the settings the mock
+      # configure service writes - and restoring that state is what makes the
+      # next run's configure answer "No webout was returned": the step passes
+      # when the drive is built in the same run (first use of a key) and fails
+      # when a previous run's drive comes back. devsetup recreates the .env and
+      # the drive, so only the download is worth keeping.
       - name: Resolve the @sasjs/server release
         id: server-release
         run: |
@@ -70,8 +82,16 @@ jobs:
         id: cache-server
         uses: actions/cache@v4
         with:
-          path: tools/sasjs-server
-          key: ${{ runner.os }}-sasjs-server-${{ steps.server-release.outputs.tag }}
+          path: tools/sasjs-server/api-linux
+          # `-bin` so this never restores the older cache entry, which was
+          # archived from the whole folder and would unpack a second
+          # tools/sasjs-server inside api-linux
+          key: ${{ runner.os }}-sasjs-server-bin-${{ steps.server-release.outputs.tag }}
+
+      # the archive keeps file modes, but a miss-then-hit on a different runner
+      # image is not worth a mystery: make it executable either way
+      - name: Make the server binary executable
+        run: chmod +x tools/sasjs-server/api-linux 2>/dev/null || true
 
       - name: Start local @sasjs/server + deploy app & mocks
         run: |
