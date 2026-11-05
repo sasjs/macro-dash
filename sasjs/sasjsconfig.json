@@ -49,6 +49,23 @@
       "repositoryName": "Foundation"
     },
     {
+      "name": "mock",
+      "serverUrl": "",
+      "serverType": "SASJS",
+      "appLoc": "/Public/app/macrodash",
+      "serviceConfig": {
+        "serviceFolders": [
+          "sasjs/mocks/sasjs/services/common"
+        ]
+      },
+      "streamConfig": {
+        "mockWeb": true,
+        "mockWebFolder": "sasjsbuild/mock",
+        "streamWeb": false,
+        "webSourcePath": "src"
+      }
+    },
+    {
       "name": "server",
       "serverUrl": "",
       "serverType": "SASJS",

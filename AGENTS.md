@@ -38,6 +38,7 @@ Hard-won design decisions and platform learnings. Read this before changing the 
   - adapter CSV: space-separated `name:format.` headers (strip `:format.`), CRLF endings, double-quoted special values
   - mocks persist state WITHOUT /tmp: settings on the Drive (`<drive>/macrodash.settings.json`, derived from `weboutPath` → `../../../drive`), scores as `scores.json` inside the configured rootdir (a real local folder - the analogue of `md_rootdir/scores.sas7bdat`)
 - Mock behaviour must mirror the real services: empty leaderboard until configured + scores exist; `savescore` throws when unconfigured.
+- The `mock` target builds the same mocks into a static site: `sasjs build -t mock` writes `sasjsbuild/mock`, whose backend is a service worker running `sasjs/mocks` against a browser drive - no server, no SAS. Serve the folder over http(s) (service workers need a secure context) and the game behaves as it does against `@sasjs/server`, minus the Drive's own files. It needs a CLI whose `streamConfig` carries `mockWeb`; every other target is untouched.
 
 ## Testing / headless verification
 

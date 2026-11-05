@@ -48,12 +48,30 @@ jobs:
 
       # Cache the downloaded SASjs Server binary across runs.
       # devsetup is idempotent - the cache just avoids re-downloading it.
+      #
+      # The key names the RELEASE, not the script that downloads it: devsetup
+      # fetches `releases/latest`, so hashing the script pins the cache to a
+      # version nothing bumps, and the runner keeps starting a binary from
+      # whenever the key was first used. The cached folder also carries
+      # sasjs_root (the drive and the .env), so that state travels with the
+      # binary it was produced by.
+      - name: Resolve the @sasjs/server release
+        id: server-release
+        run: |
+          TAG=$(curl -sI https://github.com/sasjs/server/releases/latest \
+            | grep -i '^location:' | sed 's#.*/tag/##' | tr -d '\r')
+          # no tag means no answer (an outage, a rate limit): a unique key makes
+          # the cache miss and the binary download fresh, which is safe
+          [ -n "$TAG" ] || TAG="unknown-$(date +%s)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "latest @sasjs/server release: $TAG"
+
       - name: Cache SASjs Server binary
         id: cache-server
         uses: actions/cache@v4
         with:
           path: tools/sasjs-server
-          key: ${{ runner.os }}-sasjs-server-${{ hashFiles('scripts/devsetup.js') }}
+          key: ${{ runner.os }}-sasjs-server-${{ steps.server-release.outputs.tag }}
 
       - name: Start local @sasjs/server + deploy app & mocks
         run: |
