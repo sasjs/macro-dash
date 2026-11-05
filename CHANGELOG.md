@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/sasjs/macro-dash/compare/v1.5.2...v1.6.0) (2026-11-05)
+
+
+### Features
+
+* **build:** add a mock target that runs the backend in the browser ([0897067](https://github.com/sasjs/macro-dash/commit/089706760f72275f46c8d2c1cacece678d8fd1a3)), closes [sasjs/cli#1553](https://github.com/sasjs/cli/issues/1553)
+
 ## [1.5.2](https://github.com/sasjs/macro-dash/compare/v1.5.1...v1.5.2) (2026-11-02)
 
 
