@@ -53,6 +53,8 @@ sasjs cbd -t viya      # or: sas9 | server
 
 `sasjs cbd` compiles the macros + services, builds the streaming web bundle, and deploys a service pack to the target's `appLoc` in one shot. The `serverUrl` is left blank in the shipped config — set it to your own SAS Viya / SASjs Server instance (and adjust `appLoc`, `contextName`, etc.) before deploying. The public game on [dash.sasjs.io](https://dash.sasjs.io) is the backend-free GitHub Pages build.
 
+The `server` target deploys both runtimes. A SASjs Server chooses a run time per program (`RUN_TIMES`), so its pack carries the three services twice: `services/common/configure` (and `getscores`, `savescore`) as the SAS service, and `services/common/configure.js` as the JS one that the mocks run on a `js` server or in the browser-hosted site. Deploy the same pack to either and the game gets a working backend; the Viya and SAS 9 targets keep the SAS folder alone, since neither can run the JS.
+
 ## Local development (no SAS required)
 
 ```bash

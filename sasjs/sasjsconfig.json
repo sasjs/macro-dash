@@ -73,6 +73,12 @@
         "allowInsecureRequests": false
       },
       "appLoc": "/Public/app/macrodash",
+      "serviceConfig": {
+        "serviceFolders": [
+          "sasjs/services/common",
+          "sasjs/mocks/sasjs/services/common"
+        ]
+      },
       "deployConfig": {
         "deployServicePack": true,
         "deployScripts": []
