@@ -1,3 +1,15 @@
+# [1.7.0](https://github.com/sasjs/macro-dash/compare/v1.6.0...v1.7.0) (2026-11-11)
+
+
+### Bug Fixes
+
+* **build:** build with a CLI whose packs a current server can read ([430a25c](https://github.com/sasjs/macro-dash/commit/430a25c1831e2cbd34c68d6fc723cc1d824ca222)), closes [sasjs/server#671](https://github.com/sasjs/server/issues/671) [#9](https://github.com/sasjs/macro-dash/issues/9)
+
+
+### Features
+
+* **server:** ship the JS services in the server pack ([f6934d3](https://github.com/sasjs/macro-dash/commit/f6934d329c19023ef3956c05eaed8a506c489784))
+
 # [1.6.0](https://github.com/sasjs/macro-dash/compare/v1.5.2...v1.6.0) (2026-11-05)
 
 
