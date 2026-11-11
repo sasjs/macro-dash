@@ -50,7 +50,36 @@ jobs:
       # chromium (installed with --with-deps so shared libs are present)
       # - the documented, reliable path.
       - name: Install chromium (Playwright)
-        run: npx playwright install --with-deps chromium
+        # `--with-deps` installs system packages BEFORE it downloads the browser,
+        # so the runner's apt mirror is a dependency of this job. A resolver
+        # failure there ("Temporary failure resolving 'azure.archive.ubuntu.com'",
+        # 2026-11-11) failed this step, skipped the suite and blocked the release,
+        # for a reason no commit can affect and a re-run cannot fix while the
+        # mirror is unreachable.
+        #
+        # The system packages are therefore best-effort and the browser is not;
+        # the launch check below is what decides whether the image genuinely had
+        # what Chromium needs.
+        run: |
+          npx playwright install --with-deps chromium ||
+            npx playwright install chromium
+
+      - name: Check chromium launches
+        # Reading the install's exit code is not enough: a browser that installed
+        # but cannot start fails every spec in the suite with a timeout, instead
+        # of naming the missing library here.
+        run: |
+          node -e "
+            const { chromium } = require('playwright')
+            chromium
+              .launch()
+              .then((browser) => browser.close())
+              .then(() => console.log('chromium launches'))
+              .catch((error) => {
+                console.error(error)
+                process.exit(1)
+              })
+          "
 
       # Cache the downloaded SASjs Server binary across runs.
       # devsetup is idempotent - the cache just avoids re-downloading it.
