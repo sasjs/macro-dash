@@ -5,8 +5,9 @@ name: CI – Test → Build → Pages
 # server push), and tests the game in a real browser (headless chromium)
 # against its own mocked build - a static site whose service worker answers
 # /SASjsApi/* from @sasjs/api.  No SAS, no @sasjs/server, no devsetup.
-# Releases are release-please's job (release-please.yml); this workflow tests,
-# builds the artefacts, and deploys the site stamped with the version it finds.
+# Releases are release.yml's job, and the version comes from scripts/release.mjs;
+# this workflow tests, builds the artefacts, and deploys the site stamped with
+# the version it finds.
 
 on:
   push:
@@ -50,6 +51,12 @@ jobs:
 
       # physics / level sanity gate
       - run: npm test
+
+      # the release script runs nowhere else before a release, so a defect in it
+      # would first appear as a failed release: this parses and executes the
+      # propose path on every PR and writes nothing
+      - name: Rehearse the release
+        run: npm run release:propose:dry
 
       # headless chromium for the Playwright suite.  Use the bundled
       # chromium (installed with --with-deps so shared libs are present)
@@ -132,10 +139,9 @@ jobs:
       - name: Copy the adapter bundle (src/sasjs.js is gitignored)
         run: npm run adapter
 
-      # The footer states the version of the deployment. scripts/release.mjs
-      # writes package.json and tags the same commit, and the two arrive
-      # together - but not necessarily before this job reads them, so the newer
-      # of the two wins.
+      # The footer states the version of the deployment. A release merge carries
+      # package.json, and the tag is made on that same push by release.yml, so
+      # either may be the newer by the time this job looks: take the newer.
       - name: Inject version
         run: |
           VERSION=$(node -e "

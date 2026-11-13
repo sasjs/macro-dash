@@ -171,7 +171,9 @@ function propose() {
     : releasable.some((c) => c.type === 'feat') ? 'minor' : 'patch'
   const version = nextVersion(current, level)
   const tag = `v${version}`
-  const branch = `release/${tag}`
+  // one branch, not one per version: a level change refreshes the same pull
+  // request instead of leaving the old one open beside it
+  const branch = 'release/next'
 
   console.log(`${level} release: ${current} -> ${version} (${releasable.length} commits)`)
   if (DRY) return { proposed: false, wouldPropose: version }
@@ -195,7 +197,8 @@ function propose() {
   git('checkout', '-B', branch)
   git('add', 'package.json', 'package-lock.json', 'CHANGELOG.md')
   git('-c', 'user.name=sasjs', '-c', 'user.email=sasjs@4gl.io', 'commit', '-m', `chore(release): ${version}`)
-  git('push', '--force', 'origin', branch)
+  // --force-with-lease: the branch is ours, but a maintainer's commit on it is not
+  git('push', '--force-with-lease', 'origin', branch)
 
   const body = [
     `Release ${tag}.`,
@@ -213,12 +216,12 @@ function propose() {
   if (existing) {
     run('gh', ['pr', 'edit', existing, '--title', `chore(release): ${version}`, '--body-file', bodyFile])
     console.log(`refreshed pull request #${existing}`)
-    return { proposed: true, pr: existing }
+    return { proposed: true, branch, version: tag, pr: existing }
   }
   const url = run('gh', ['pr', 'create', '--head', branch, '--base', 'main',
     '--title', `chore(release): ${version}`, '--body-file', bodyFile]).trim()
   console.log(`opened ${url}`)
-  return { proposed: true, url }
+  return { proposed: true, branch, version: tag, url }
 }
 
 const result = PROPOSE ? propose() : cut()

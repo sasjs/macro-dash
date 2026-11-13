@@ -1,9 +1,9 @@
 name: Build artefacts
 
 # One definition of the deployable artefacts, called by ci.yml (on every push
-# and PR, as a gate) and by release-please.yml (to attach them to a release).
-# Two copies of these steps drifted before: the release built two files while
-# CI built three.
+# and PR, as a gate) and by release.yml (to attach them to a release). Two
+# copies of these steps drifted before: the release built two files while CI
+# built three.
 
 on:
   workflow_call:

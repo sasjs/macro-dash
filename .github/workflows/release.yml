@@ -16,6 +16,9 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # a push made with GITHUB_TOKEN starts no workflow runs, so the release pull
+  # request would arrive with no checks: ci.yml is dispatched against its branch
+  actions: write
 
 concurrency:
   group: release
@@ -48,10 +51,17 @@ jobs:
       # and open (or refresh) the pull request for whatever has been merged
       # since - never a commit to main
       - name: Propose the next release
+        id: propose
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/release.mjs --propose
+
+      - name: Run the checks on the release pull request
+        if: steps.propose.outputs.proposed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run "CI – Test → Build → Pages" --ref "${{ steps.propose.outputs.branch }}"
 
   artefacts:
     name: Build the release artefacts
