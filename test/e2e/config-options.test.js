@@ -15,7 +15,7 @@ const OPTS = [
   const { b, p } = await H.launch();
   try {
     await p.goto(H.APP, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await p.waitForTimeout(1500);
+    await H.waitForApp(p);
     await p.evaluate(() => window.MACRODASH_FORCE_VIYA(true));
     await p.waitForTimeout(400);
 
