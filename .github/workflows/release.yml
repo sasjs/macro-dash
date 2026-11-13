@@ -1,11 +1,11 @@
 name: Release
 
-# scripts/release.mjs never writes to main. It works the next version out from
-# the conventional commits merged since the last tag and opens a pull request
-# with package.json and CHANGELOG.md bumped (--propose); when a person merges
-# that pull request, the default mode tags the merged commit and publishes the
-# release. This workflow then builds the deployable artefacts and attaches them,
-# so releases/latest/download/<file> keeps answering.
+# scripts/release.mjs works the next version out from the conventional commits
+# merged since the last tag, tags the commit that was merged, and publishes the
+# release. No commit is made and no branch is touched: package.json states 0.0.0
+# and the tag is the only record of a version. This workflow then builds the
+# deployable artefacts with that version stamped into them and attaches them, so
+# releases/latest/download/<file> keeps answering.
 
 on:
   push:
@@ -15,10 +15,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
-  # a push made with GITHUB_TOKEN starts no workflow runs, so the release pull
-  # request would arrive with no checks: ci.yml is dispatched against its branch
-  actions: write
 
 concurrency:
   group: release
@@ -30,44 +26,30 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       released: ${{ steps.release.outputs.released }}
+      version: ${{ steps.release.outputs.version }}
       tag: ${{ steps.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # the script tags, and reads the tags to find the last release
+          # the tags are the version history, and the tag is what gets made
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      # tags and publishes the version the merged release PR states; a no-op on
-      # any other push
-      - name: Publish the release this commit describes
+      - name: Tag and publish, if there is anything to release
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/release.mjs
-
-      # and open (or refresh) the pull request for whatever has been merged
-      # since - never a commit to main
-      - name: Propose the next release
-        id: propose
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/release.mjs --propose
-
-      - name: Run the checks on the release pull request
-        if: steps.propose.outputs.proposed == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run "CI – Test → Build → Pages" --ref "${{ steps.propose.outputs.branch }}"
 
   artefacts:
     name: Build the release artefacts
     needs: release
     if: needs.release.outputs.released == 'true'
     uses: ./.github/workflows/artefacts.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
 
   attach:
     name: Attach the artefacts to the release
@@ -82,4 +64,5 @@ jobs:
 
       - env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: gh release upload "${{ needs.release.outputs.tag }}" artefacts/* --clobber

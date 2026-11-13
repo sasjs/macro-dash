@@ -1,3 +1,6 @@
+<!-- From v1.7.1 the notes are on the releases page: the tag is the version,
+     and no release writes a file. -->
+
 ## [1.7.1](https://github.com/sasjs/macro-dash/compare/v1.7.0...v1.7.1) (2026-11-13)
 
 

@@ -5,9 +5,9 @@ name: CI – Test → Build → Pages
 # server push), and tests the game in a real browser (headless chromium)
 # against its own mocked build - a static site whose service worker answers
 # /SASjsApi/* from @sasjs/api.  No SAS, no @sasjs/server, no devsetup.
-# Releases are release.yml's job, and the version comes from scripts/release.mjs;
-# this workflow tests, builds the artefacts, and deploys the site stamped with
-# the version it finds.
+# Releases are release.yml's job, and the version is the git tag it makes: this
+# workflow tests, builds the artefacts, and deploys the site stamped with the
+# newest tag.
 
 on:
   push:
@@ -125,8 +125,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-          # the footer reads the newest tag as well as package.json, so the
-          # tags have to be in the checkout
+          # the footer states the newest tag, so the tags have to be here
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -139,30 +138,19 @@ jobs:
       - name: Copy the adapter bundle (src/sasjs.js is gitignored)
         run: npm run adapter
 
-      # The footer states the version of the deployment. A release merge carries
-      # package.json, and the tag is made on that same push by release.yml, so
-      # either may be the newer by the time this job looks: take the newer.
+      # the tag is the only record of a version - package.json states 0.0.0 and
+      # nothing writes it - so the tag is what the footer states
       - name: Inject version
         run: |
-          VERSION=$(node -e "
-            const cur = require('./package.json').version;
-            let tag = process.argv[1] || '';
-            const p = (s) => String(s).replace(/^v/, '').split('.').map(Number);
-            const newer = (a, b) => {
-              const [a1, a2, a3] = p(a), [b1, b2, b3] = p(b);
-              return (a1 - b1) || (a2 - b2) || (a3 - b3);
-            };
-            console.log(tag && newer(tag, cur) > 0 ? tag.replace(/^v/, '') : cur);
-          " "$(git describe --tags --abbrev=0 2>/dev/null)")
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+          [ -n "$VERSION" ] || VERSION=0.0.0
           echo "footer version: $VERSION"
           export VERSION
-          # replaces every {{VERSION}} placeholder in the page the build copies
           node - <<'EOF'
           const fs = require('fs');
-          const version = process.env.VERSION;
           const indexPath = 'src/index.html';
-          let html = fs.readFileSync(indexPath,'utf8');
-          html = html.replaceAll('{{VERSION}}', version);
+          const html = fs.readFileSync(indexPath, 'utf8')
+            .replaceAll('{{VERSION}}', process.env.VERSION);
           fs.writeFileSync(indexPath, html);
           EOF
       # The published site is the *mocked* build, not src/: `sasjs build -t mock`

@@ -7,6 +7,12 @@ name: Build artefacts
 
 on:
   workflow_call:
+    inputs:
+      version:
+        description: Version to stamp into the built page (from the release tag)
+        required: false
+        type: string
+        default: ''
     outputs:
       artifact-name:
         description: The uploaded artefact bundle
@@ -27,6 +33,19 @@ jobs:
 
       - name: Copy the adapter bundle (src/sasjs.js is gitignored)
         run: npm run adapter
+
+      # the release passes the tag's version, so the streamed page in the pack
+      # states the release it belongs to
+      - name: Stamp the version
+        if: inputs.version != ''
+        run: |
+          echo "stamping version ${{ inputs.version }}"
+          export VERSION="${{ inputs.version }}"
+          node -e "
+            const fs = require('fs');
+            const p = 'src/index.html';
+            fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replaceAll('{{VERSION}}', process.env.VERSION));
+          "
 
       # compile + build the deployable artefacts locally, per platform.
       # No deploy: `cb` only compiles/builds to sasjsbuild/.

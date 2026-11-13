@@ -92,25 +92,24 @@ To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 
 ## Releases
 
-`scripts/release.mjs` owns the version, with nothing installed to do it and without ever writing to
-`main`. Two phases:
+The git tag is the only record of a version. `package.json` states `0.0.0` and nothing writes it,
+and no release makes a commit on any branch.
 
-1. `node scripts/release.mjs --propose` - run by `.github/workflows/release.yml` on every push to
-   `main` - works the next version out from the conventional commits merged since the last tag
-   (`!` or a `BREAKING CHANGE:` footer means major; on a 0.x version it means minor), bumps
-   `package.json`, both version fields of `package-lock.json` and `CHANGELOG.md` on a
-   `release/vX.Y.Z` branch, and opens or refreshes a pull request. Pushing that branch is the only
-   write it makes.
-2. When someone merges that pull request, the push to `main` runs `node scripts/release.mjs`, which
-   tags the merged commit and publishes the GitHub release. It never commits to `main`; it tags
-   what a person merged.
+`scripts/release.mjs` (zero dependencies) runs in `.github/workflows/release.yml` on every push to
+`main`: it reads the conventional commits since the last tag (`!` or a `BREAKING CHANGE:` footer is
+major, minor while the major is 0; `feat` minor; `fix`, `perf`, `refactor` patch), picks the next
+version, tags the merged commit `vX.Y.Z`, and publishes the release with notes built from those
+commits. A push whose commits are all `docs`, `chore`, `ci` or `test` releases nothing.
 
-The workflow then builds `macro-dash-viya.sas`, `macro-dash-viya.json.zip` and
-`macro-dash-server.json.zip` and attaches them to the release, so
-`releases/latest/download/<file>` keeps answering. The published site takes its footer version from
-the newer of `package.json` and the newest tag, so it states the release it belongs to.
+The workflow then calls `artefacts.yml` with that version, which stamps it into the page before
+`sasjs cb` and builds `macro-dash-viya.sas`, `macro-dash-viya.json.zip` and
+`macro-dash-server.json.zip`, so the packs state the release they came from; they are attached to
+the release, which keeps `releases/latest/download/<file>` answering. The Pages job stamps the
+newest tag into the footer, so the site states the release it belongs to.
 
-    npm run release:propose:dry   # the version it would propose, writing nothing
+    npm run release:dry   # what it would tag, writing nothing
+
+`CHANGELOG.md` is the record up to v1.7.1; from there the release notes carry it.
 
 ## GitHub Pages (the mocked build)
 

@@ -1,39 +1,27 @@
 #!/usr/bin/env node
 /**
- * Release macro-dash from its conventional commits, without writing to main.
+ * Tag macro-dash for release, from its conventional commits.
  *
- * Two modes, both driven by the tags and by package.json:
+ * The git tag is the only record of a version: package.json states 0.0.0 and
+ * nothing writes it, no commit is made by a release, and nothing is pushed to
+ * any branch. What this creates is an annotated tag on the commit that was
+ * merged, and a GitHub release whose notes are the commits it covers. The
+ * workflows then build the assets with that version stamped into them.
  *
- *   node scripts/release.mjs            (default) cut the release this commit
- *                                       describes - tag it and publish it, if
- *                                       package.json is ahead of the last tag
- *   node scripts/release.mjs --propose  open (or refresh) the pull request that
- *                                       bumps package.json and CHANGELOG.md to
- *                                       the next version, worked out from the
- *                                       conventional commits since the last tag
- *
- * Neither mode commits to main: the default tags the commit a human merged, and
- * --propose pushes a release branch and opens a pull request. A person merges
- * that pull request; the push it makes then tags and publishes the release here.
- *
- *   --dry-run   say what it would do, change nothing
+ *   node scripts/release.mjs             # tag and publish, if there is anything to release
+ *   node scripts/release.mjs --dry-run   # say what it would tag, change nothing
  *
  * No dependencies: node's own fs/child_process, and the `gh` CLI on the runner.
  */
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync, existsSync, mkdtempSync } from 'node:fs'
+import { writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const args = process.argv.slice(2)
-const DRY = args.includes('--dry-run')
-const PROPOSE = args.includes('--propose')
+const DRY = process.argv.includes('--dry-run')
 
 const git = (...a) => execFileSync('git', a, { encoding: 'utf8' }).trim()
 const run = (cmd, a) => execFileSync(cmd, a, { encoding: 'utf8' })
-
-const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'))
-const writeJson = (p, v) => writeFileSync(p, JSON.stringify(v, null, 2) + '\n')
 
 function latestTag() {
   try {
@@ -43,6 +31,7 @@ function latestTag() {
   }
 }
 
+/** The commits merged since `from`, newest last, as subject and body. */
 function commitsSince(from) {
   const range = from ? `${from}..HEAD` : 'HEAD'
   const raw = git('log', range, '--pretty=format:%s%x00%b%x01')
@@ -53,7 +42,7 @@ function commitsSince(from) {
   })
 }
 
-const TYPES = { feat: 'minor', fix: 'patch', perf: 'patch', refactor: 'patch' }
+const TYPES = { feat: true, fix: true, perf: true, refactor: true }
 
 function classify({ subject, body }) {
   const m = subject.match(/^([a-z]+)(\([^)]*\))?(!)?:\s*(.+)$/i)
@@ -66,8 +55,9 @@ function classify({ subject, body }) {
   }
 }
 
-function nextVersion(current, level) {
-  const [major, minor, patch] = current.split('.').map(Number)
+/** Semver, from the version the last tag names. */
+function nextVersion(base, level) {
+  const [major, minor, patch] = (base || '0.0.0').split('.').map(Number)
   if (level === 'major') return `${major + 1}.0.0`
   if (level === 'minor') return `${major}.${minor + 1}.0`
   return `${major}.${minor}.${patch + 1}`
@@ -81,154 +71,72 @@ const TITLES = {
   refactor: 'Refactors'
 }
 
-function groups(commits) {
-  const out = { breaking: [], feat: [], fix: [], perf: [], refactor: [] }
-  for (const c of commits) {
-    const parsed = classify(c)
-    if (parsed.breaking) out.breaking.push(parsed)
-    if (parsed.type in out) out[parsed.type].push(parsed)
-  }
-  return out
-}
-
-function entry(version, out, repo, previous) {
-  const date = new Date().toISOString().slice(0, 10)
+function notes(version, parsed, previous) {
+  const repo = process.env.GITHUB_REPOSITORY || 'sasjs/macro-dash'
   const link = previous
     ? `https://github.com/${repo}/compare/${previous}...v${version}`
     : `https://github.com/${repo}/releases/tag/v${version}`
+  const groups = { breaking: [], feat: [], fix: [], perf: [], refactor: [] }
+  for (const c of parsed) {
+    if (c.breaking) groups.breaking.push(c)
+    if (c.type in groups) groups[c.type].push(c)
+  }
+
+  const date = new Date().toISOString().slice(0, 10)
   const lines = [`## [${version}](${link}) (${date})`, '']
-  for (const key of ['breaking', 'feat', 'fix', 'perf', 'refactor']) {
-    if (!out[key].length) continue
+  for (const key of Object.keys(TITLES)) {
+    if (!groups[key].length) continue
     lines.push(`### ${TITLES[key]}`, '')
-    for (const c of out[key]) lines.push(`* ${c.text}`)
+    for (const c of groups[key]) lines.push(`* ${c.text}`)
     lines.push('')
   }
   return lines.join('\n')
 }
 
-function releaseNotes(repo, tag) {
-  const dir = mkdtempSync(join(tmpdir(), 'md-release-'))
-  const notes = join(dir, 'notes.md')
-  const changelog = existsSync('CHANGELOG.md') ? readFileSync('CHANGELOG.md', 'utf8') : ''
-  const match = changelog.match(/^## \[[^\]]+\][^\n]*\n([\s\S]*?)(?=^## \[|$)/m)
-  writeFileSync(notes, (match ? match[1] : `Release ${tag}`).trim() + '\n')
-  return notes
-}
-
-/** Cut the release for the version package.json already states. */
-function cut() {
-  const repo = process.env.GITHUB_REPOSITORY || 'sasjs/macro-dash'
-  const version = readJson('package.json').version
-  const tag = `v${version}`
+function main() {
   const previous = latestTag()
-
-  // the tag is what the site and the releases use; package.json only says which
-  // version this commit is for, so a tag at or ahead of it means it is released
-  const cmp = (a, b) => {
-    const p = (s) => String(s).replace(/^v/, '').split('.').map(Number)
-    const [a1, a2, a3] = p(a)
-    const [b1, b2, b3] = p(b)
-    return (a1 - b1) || (a2 - b2) || (a3 - b3)
-  }
-  if (previous && cmp(previous, tag) >= 0) {
-    console.log(`already released: ${previous} (package.json ${version})`)
-    return { released: false }
-  }
-
-  if (git('rev-list', '--count', `${previous || 'HEAD'}..HEAD`) === '0' && previous) {
-    console.log(`nothing merged since ${previous}`)
-    return { released: false }
-  }
-
-  console.log(`releasing ${tag} (package.json ${version}, last tag ${previous || 'none'})`)
-  if (DRY) return { released: false, wouldRelease: tag }
-
-  git('tag', '-a', tag, '-m', tag)
-  git('push', 'origin', tag)
-  run('gh', ['release', 'create', tag, '--title', tag, '--notes-file', releaseNotes(repo, tag)])
-  console.log(`released ${tag}`)
-  return { released: true, tag }
-}
-
-/** Open or refresh the pull request that carries the next version. */
-function propose() {
-  const repo = process.env.GITHUB_REPOSITORY || 'sasjs/macro-dash'
-  const current = readJson('package.json').version
-  const previous = latestTag()
-  const commits = commitsSince(previous)
-  const out = groups(commits)
-  const releasable = commits
-    .map(classify)
-    .filter((c) => c.breaking || c.type in TYPES)
+  const parsed = commitsSince(previous).map(classify)
+  const releasable = parsed.filter((c) => c.breaking || c.type in TYPES)
 
   if (!releasable.length) {
-    console.log(`nothing to propose since ${previous || 'the first commit'}`)
-    return { proposed: false }
+    console.log(`nothing to release since ${previous || 'the first commit'}`)
+    writeOutput({ released: false })
+    return
   }
 
+  const base = previous.replace(/^v/, '')
   const level = releasable.some((c) => c.breaking)
-    ? (Number(current.split('.')[0]) === 0 ? 'minor' : 'major')
+    ? (Number(base.split('.')[0]) === 0 ? 'minor' : 'major')
     : releasable.some((c) => c.type === 'feat') ? 'minor' : 'patch'
-  const version = nextVersion(current, level)
+  const version = nextVersion(base, level)
   const tag = `v${version}`
-  // one branch, not one per version: a level change refreshes the same pull
-  // request instead of leaving the old one open beside it
-  const branch = 'release/next'
 
-  console.log(`${level} release: ${current} -> ${version} (${releasable.length} commits)`)
-  if (DRY) return { proposed: false, wouldPropose: version }
+  console.log(`${level} release: ${previous || 'none'} -> ${tag} (${releasable.length} commits)`)
+  const body = notes(version, parsed, previous)
+  console.log(body)
 
-  const pkg = readJson('package.json')
-  pkg.version = version
-  writeJson('package.json', pkg)
-
-  if (existsSync('package-lock.json')) {
-    const lock = readJson('package-lock.json')
-    lock.version = version
-    if (lock.packages && lock.packages['']) lock.packages[''].version = version
-    writeJson('package-lock.json', lock)
+  if (DRY) {
+    console.log('\n--dry-run: nothing tagged')
+    writeOutput({ released: false, version })
+    return
   }
 
-  const text = entry(version, out, repo, previous)
-  const changelog = existsSync('CHANGELOG.md') ? readFileSync('CHANGELOG.md', 'utf8') : ''
-  writeFileSync('CHANGELOG.md', text + '\n' + changelog)
-
-  // a release branch, never main
-  git('checkout', '-B', branch)
-  git('add', 'package.json', 'package-lock.json', 'CHANGELOG.md')
-  git('-c', 'user.name=sasjs', '-c', 'user.email=sasjs@4gl.io', 'commit', '-m', `chore(release): ${version}`)
-  // --force-with-lease: the branch is ours, but a maintainer's commit on it is not
-  git('push', '--force-with-lease', 'origin', branch)
-
-  const body = [
-    `Release ${tag}.`,
-    '',
-    text,
-    '',
-    'Merging this pull request is the release: the push to main tags it and publishes it.'
-  ].join('\n')
   const dir = mkdtempSync(join(tmpdir(), 'md-release-'))
-  const bodyFile = join(dir, 'body.md')
-  writeFileSync(bodyFile, body)
+  const notesFile = join(dir, 'notes.md')
+  writeFileSync(notesFile, body.split('\n').slice(2).join('\n') + '\n')
 
-  const existing = execFileSync('gh', ['pr', 'list', '--head', branch, '--json', 'number', '--jq', '.[0].number'],
-    { encoding: 'utf8' }).trim()
-  if (existing) {
-    run('gh', ['pr', 'edit', existing, '--title', `chore(release): ${version}`, '--body-file', bodyFile])
-    console.log(`refreshed pull request #${existing}`)
-    return { proposed: true, branch, version: tag, pr: existing }
-  }
-  const url = run('gh', ['pr', 'create', '--head', branch, '--base', 'main',
-    '--title', `chore(release): ${version}`, '--body-file', bodyFile]).trim()
-  console.log(`opened ${url}`)
-  return { proposed: true, branch, version: tag, url }
+  // an annotated tag carries an identity, and a checkout in CI configures none
+  git('-c', 'user.name=sasjs', '-c', 'user.email=sasjs@4gl.io', 'tag', '-a', tag, '-m', tag)
+  git('push', 'origin', tag)
+  run('gh', ['release', 'create', tag, '--title', tag, '--notes-file', notesFile])
+  console.log(`released ${tag}`)
+  writeOutput({ released: true, version, tag })
 }
 
-const result = PROPOSE ? propose() : cut()
-if (process.env.GITHUB_OUTPUT) {
-  const lines = Object.entries(result)
-    .filter(([, v]) => v !== undefined && v !== false)
-    .map(([k, v]) => `${k}=${v}`)
-  const released = result.released ? 'released=true' : 'released=false'
-  writeFileSync(process.env.GITHUB_OUTPUT, [released, ...lines].join('\n') + '\n', { flag: 'a' })
+function writeOutput(values) {
+  if (!process.env.GITHUB_OUTPUT) return
+  const lines = Object.entries(values).map(([k, v]) => `${k}=${v}`)
+  writeFileSync(process.env.GITHUB_OUTPUT, lines.join('\n') + '\n', { flag: 'a' })
 }
+
+main()
