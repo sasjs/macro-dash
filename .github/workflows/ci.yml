@@ -159,6 +159,7 @@ jobs:
           cache: npm
       - run: npm ci
       # inject version number into homepage (replace every {{VERSION}} placeholder)
+      # before the build copies src/ into the published folder
       - name: Inject version
         run: |
           node - <<'EOF'
@@ -170,13 +171,23 @@ jobs:
           html = html.replaceAll('{{VERSION}}', version);
           fs.writeFileSync(indexPath, html);
           EOF
-      # disable Jekyll processing on GitHub Pages
-      - name: Add .nojekyll
-        run: touch src/.nojekyll
+      # The published site is the *mocked* build, not src/: `sasjs build -t mock`
+      # writes the same page plus host/ and sw.js, a service worker that answers
+      # /SASjsApi/* from @sasjs/api.  Uploading src/ publishes a frontend with no
+      # backend at all, where configure answers 405 from GitHub Pages - which is
+      # exactly what dash.sasjs.io did.
+      - name: Build the mocked site
+        run: npm run mock:build
+      # a custom domain is a file in the published folder: without it Pages
+      # serves the site at github.io/<repo>/ and the DNS record points nowhere
+      - name: Add the custom domain
+        run: |
+          printf 'dash.sasjs.io\n' > sasjsbuild/mock/CNAME
+          touch sasjsbuild/mock/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: src
+          path: sasjsbuild/mock
       - id: deployment
         uses: actions/deploy-pages@v4
 

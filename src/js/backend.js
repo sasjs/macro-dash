@@ -66,6 +66,16 @@
      attribute - so the page knows synchronously whether it is configured,
      without waiting for a getConfig round trip. */
   var configured = !!(el && el.getAttribute("configured") === "true");
+  /* A static host cannot restamp this page: the configure service writes the
+     flag into the *streamed* index.html, which a site served straight from a
+     folder (the mock build, GitHub Pages) does not have.  There the browser
+     keeps the successful configure instead, so a visitor who has set the
+     results folder up is not asked for it again on the next load. */
+  if (!configured) {
+    try {
+      configured = localStorage.getItem("macrodash_configured") === "true";
+    } catch (e) {}
+  }
 
   /* LAZY adapter load: sasjs.js is a big UMD bundle and a blocking
      <script src> tag delayed the title screen by seconds on slow
@@ -289,8 +299,12 @@
     isConfigured: function () { return configured; },
 
     /* update the in-memory flag after a successful configure() call (the
-       page itself is only re-stamped on disk, not reloaded) */
-    setConfigured: function () { configured = true; },
+       page itself is only re-stamped on disk, not reloaded).  On a static
+       host there is no re-stamp to come back to, so remember it here too. */
+    setConfigured: function () {
+      configured = true;
+      try { localStorage.setItem("macrodash_configured", "true"); } catch (e) {}
+    },
     isViya: function () { return forceViya || serverType === "SASVIYA"; },
     /* test-only override: render the Viya configurator locally */
     forceViya: function (on) { forceViya = !!on; },
