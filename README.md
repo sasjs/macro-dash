@@ -109,7 +109,10 @@ newest tag into the footer, so the site states the release it belongs to.
 
     npm run release:dry   # what it would tag, writing nothing
 
-`CHANGELOG.md` is the record up to v1.7.1; from there the release notes carry it.
+There is no `CHANGELOG.md`: a release writes no file into the repository - that needs a push to
+`main` a release may not be allowed to make - so the release page is the changelog, and its body is
+the commits of that release only. `CHANGELOG.md` up to v1.7.1 stays in the git history, and the
+releases before this change carry their own notes.
 
 ## GitHub Pages (the mocked build)
 
