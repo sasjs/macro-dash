@@ -53,10 +53,10 @@ jobs:
       - run: npm test
 
       # the release script runs nowhere else before a release, so a defect in it
-      # would first appear as a failed release: this parses and executes the
-      # propose path on every PR and writes nothing
+      # would first appear as a failed release: this classifies the commits and
+      # prints the version and notes it would tag, writing nothing
       - name: Rehearse the release
-        run: npm run release:propose:dry
+        run: npm run release:dry
 
       # headless chromium for the Playwright suite.  Use the bundled
       # chromium (installed with --with-deps so shared libs are present)
