@@ -1,5 +1,8 @@
 /* Board: PLAY AGAIN / HOME buttons fire; DNF rows render; initials show on
- * the local best-scores board.  Runs against the local SASjs Server. */
+ * the local best-scores board.  Runs against the mocked build that run.js
+ * serves (sasjsbuild/mock, whose service worker is the backend); MD_APP points
+ * the suite at a real server instead, and the second phase uses the
+ * no-backend src build (MD_SRC). */
 const H = require('./helper');
 
 (async () => {
@@ -9,8 +12,11 @@ const H = require('./helper');
     try {
       await p.goto(H.APP, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await p.waitForTimeout(1500);
-      // a fresh host has no results folder: run the configure service
-      await H.configure(p);
+      // a fresh host has no results folder: run the configure service, and
+      // fail here rather than at a later assertion if it did not take
+      (await H.configure(p))
+        ? H.ok('configured')
+        : H.bad('configure', await p.evaluate(() => window.MACRODASH_CONFIG_MSG()));
       await p.waitForTimeout(300);
 
       // seed 2 finishes + 1 DNF via the backend (mock savescore)

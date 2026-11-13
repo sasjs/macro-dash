@@ -140,10 +140,15 @@ async function waitForHost(p) {
       : H.bad('mock host: configured lost on reload');
 
     // ---- 2. the cleared-drive case: flag planted, no settings on the drive.
-    // The drive read is delayed on purpose: it decides the answer *after* the
-    // app has read it, which is the window the fix exists for.  Without the
-    // delay the read can land between script tags and the lockout hides.
+    // The drive read is held, on purpose: it decides the answer *after* the app
+    // has read it, which is the window the fix exists for.  The hold is a gate
+    // the test opens itself (window.__releaseDriveRead), not a timer: a fixed
+    // delay races waitForHost on a loaded runner, and the assertion below would
+    // then read a reconciled false and fail over working code.
     await p.addInitScript(() => {
+      let release = null;
+      window.__driveRead = new Promise(r => { release = r; });
+      window.__releaseDriveRead = () => { if (release) release(); };
       let real = null;
       Object.defineProperty(window, 'SASjsMock', {
         configurable: true,
@@ -153,9 +158,7 @@ async function waitForHost(p) {
           if (v && typeof v.readAll === 'function') {
             const orig = v.readAll;
             v.readAll = function (...args) {
-              return new Promise((resolve, reject) => {
-                setTimeout(() => orig.apply(v, args).then(resolve, reject), 3000);
-              });
+              return window.__driveRead.then(() => orig.apply(v, args));
             };
           }
         }
@@ -167,8 +170,8 @@ async function waitForHost(p) {
     await p.reload({ waitUntil: 'domcontentloaded' });
     /* a wall clock is not the wait: on a loaded runner the evaluate below
        would throw on an undefined MACRODASH_BACKEND and the run would report
-       "mock-host threw" instead of a named failure.  The injected readAll delay
-       keeps the race window open across this wait. */
+       "mock-host threw" instead of a named failure.  The held read keeps the
+       race window open across this wait, however long it takes. */
     (await waitForHost(p))
       ? H.ok('cleared site: backend is up after the reload')
       : H.bad('cleared site: no backend after the reload');
@@ -177,6 +180,7 @@ async function waitForHost(p) {
       ? H.ok('cleared site: the flag answers first (the race the fix covers)')
       : H.bad('cleared site: flag not consulted at boot');
 
+    await p.evaluate(() => window.__releaseDriveRead());
     for (let i = 0; i < 40; i++) {
       if (!(await p.evaluate(() => window.MACRODASH_BACKEND.isConfigured()))) break;
       await p.waitForTimeout(250);
