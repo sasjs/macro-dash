@@ -1,0 +1,68 @@
+name: Release
+
+# scripts/release.mjs works the next version out from the conventional commits
+# merged since the last tag, tags the commit that was merged, and publishes the
+# release. No commit is made and no branch is touched: package.json states 0.0.0
+# and the tag is the only record of a version. This workflow then builds the
+# deployable artefacts with that version stamped into them and attaches them, so
+# releases/latest/download/<file> keeps answering.
+
+on:
+  push:
+    branches: [main]
+  # a manual run releases whatever has been merged since the last tag
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # the tags are the version history, and the tag is what gets made
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Tag and publish, if there is anything to release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/release.mjs
+
+  artefacts:
+    name: Build the release artefacts
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: ./.github/workflows/artefacts.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+
+  attach:
+    name: Attach the artefacts to the release
+    needs: [release, artefacts]
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.artefacts.outputs.artifact-name }}
+          path: artefacts
+
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "${{ needs.release.outputs.tag }}" artefacts/* --clobber

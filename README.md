@@ -45,7 +45,7 @@ The high-score board is at `#scores` — a refreshable page (deep-link, reload, 
 
 ### Deploy from source / to other platforms
 
-The release artefact is built by CI from `sasjs/` on every push to `main`. To build and deploy directly from a checkout (e.g. for SAS 9 or SASjs Server, or to push to Viya without the release script), the targets live in `sasjs/sasjsconfig.json`:
+The release artefact is built from `sasjs/` when a release is published (see [Releases](#releases)). To build and deploy directly from a checkout (e.g. for SAS 9 or SASjs Server, or to push to Viya without the release script), the targets live in `sasjs/sasjsconfig.json`:
 
 ```bash
 sasjs cbd -t viya      # or: sas9 | server
@@ -89,6 +89,30 @@ To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 - `npm run test:e2e` - Playwright e2e suite (6 suites / 34 assertions) against the mocked build and the no-backend `src/` build; covers the configurator, `#scores` routing, level transitions, DNF entries and the board buttons. It needs no SAS and no server: `test/e2e/run.js` serves `sasjsbuild/mock` (build it first) and the app's service worker is the backend.
 - `npm run adapter` - copy `src/sasjs.js` from `node_modules/@sasjs/adapter` (the repo's `.npmrc` sets `ignore-scripts=true`, so the old `prepare` hook no longer runs)
 - `npm run audit:gate` - dependency gate: fails on any advisory above `low` that is not listed in `scripts/audit-allowlist.json` with a reason
+
+## Releases
+
+The git tag is the only record of a version. `package.json` states `0.0.0` and nothing writes it,
+and no release makes a commit on any branch.
+
+`scripts/release.mjs` (zero dependencies) runs in `.github/workflows/release.yml` on every push to
+`main`: it reads the conventional commits since the last tag (`!` or a `BREAKING CHANGE:` footer is
+major, minor while the major is 0; `feat` minor; `fix`, `perf`, `refactor` patch), picks the next
+version, tags the merged commit `vX.Y.Z`, and publishes the release with notes built from those
+commits. A push whose commits are all `docs`, `chore`, `ci` or `test` releases nothing.
+
+The workflow then calls `artefacts.yml` with that version, which stamps it into the page before
+`sasjs cb` and builds `macro-dash-viya.sas`, `macro-dash-viya.json.zip` and
+`macro-dash-server.json.zip`, so the packs state the release they came from; they are attached to
+the release, which keeps `releases/latest/download/<file>` answering. The Pages job stamps the
+newest tag into the footer, so the site states the release it belongs to.
+
+    npm run release:dry   # what it would tag, writing nothing
+
+There is no `CHANGELOG.md`: a release writes no file into the repository - that needs a push to
+`main` a release may not be allowed to make - so the release page is the changelog, and its body is
+the commits of that release only. `CHANGELOG.md` up to v1.7.1 stays in the git history, and the
+releases before this change carry their own notes.
 
 ## GitHub Pages (the mocked build)
 

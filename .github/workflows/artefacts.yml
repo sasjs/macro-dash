@@ -1,0 +1,76 @@
+name: Build artefacts
+
+# One definition of the deployable artefacts, called by ci.yml (on every push
+# and PR, as a gate) and by release.yml (to attach them to a release). Two
+# copies of these steps drifted before: the release built two files while CI
+# built three.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version to stamp into the built page (from the release tag)
+        required: false
+        type: string
+        default: ''
+    outputs:
+      artifact-name:
+        description: The uploaded artefact bundle
+        value: macro-dash-artefacts
+
+jobs:
+  build:
+    name: Build artefacts (sasjs cb)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Copy the adapter bundle (src/sasjs.js is gitignored)
+        run: npm run adapter
+
+      # the release passes the tag's version, so the streamed page in the pack
+      # states the release it belongs to
+      - name: Stamp the version
+        if: inputs.version != ''
+        run: |
+          echo "stamping version ${{ inputs.version }}"
+          export VERSION="${{ inputs.version }}"
+          node -e "
+            const fs = require('fs');
+            const p = 'src/index.html';
+            fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replaceAll('{{VERSION}}', process.env.VERSION));
+          "
+
+      # compile + build the deployable artefacts locally, per platform.
+      # No deploy: `cb` only compiles/builds to sasjsbuild/.
+      - name: Build Viya artefact
+        run: |
+          npx sasjs cb -t viya
+          mkdir -p artefacts
+          cp sasjsbuild/viya.sas artefacts/macro-dash-viya.sas
+          cp sasjsbuild/viya.json.zip artefacts/macro-dash-viya.json.zip
+
+      - name: Build Server artefact
+        run: |
+          npx sasjs cb -t server
+          mkdir -p artefacts
+          cp sasjsbuild/server.json.zip artefacts/macro-dash-server.json.zip
+
+      - name: Verify build artefacts
+        run: |
+          ls -lh artefacts
+          test -s artefacts/macro-dash-viya.sas
+          test -s artefacts/macro-dash-viya.json.zip
+          test -s artefacts/macro-dash-server.json.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macro-dash-artefacts
+          path: artefacts/
+          if-no-files-found: error

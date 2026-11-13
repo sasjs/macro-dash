@@ -1,16 +1,1 @@
-[
-  {
-    "source": 1244013,
-    "package": "glob",
-    "severity": "moderate",
-    "title": "Glob: AbortSignal cancellation bypass allows post-timeout filesystem traversal",
-    "reason": "Inside npm 11.21.2, which @semantic-release/npm installs to run the release: npm depends on glob 13.0.6 and minimatch 10.2.5, and the patched releases are majors it does not accept (glob 14, minimatch 11). Dev-only, not in the published site. Pinning a package manager's own dependency graph to satisfy an advisory is a worse trade than the advisory; the fix belongs in npm."
-  },
-  {
-    "source": 1244623,
-    "package": "minimatch",
-    "severity": "moderate",
-    "title": "minimatch has potential denial of service via globparts amplification",
-    "reason": "Inside npm 11.21.2, which @semantic-release/npm installs to run the release: npm depends on glob 13.0.6 and minimatch 10.2.5, and the patched releases are majors it does not accept (glob 14, minimatch 11). Dev-only, not in the published site. Pinning a package manager's own dependency graph to satisfy an advisory is a worse trade than the advisory; the fix belongs in npm."
-  }
-]
+[]
