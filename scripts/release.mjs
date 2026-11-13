@@ -32,8 +32,8 @@ function latestTag() {
 }
 
 /** The commits merged since `from`, newest last, as subject and body. */
-function commitsSince(from) {
-  const range = from ? `${from}..HEAD` : 'HEAD'
+function commitsSince(from, to = 'HEAD') {
+  const range = from ? `${from}..${to}` : to
   const raw = git('log', range, '--pretty=format:%s%x00%b%x01')
   if (!raw) return []
   return raw.split('\x01').filter(Boolean).map((entry) => {
@@ -71,7 +71,7 @@ const TITLES = {
   refactor: 'Refactors'
 }
 
-function notes(version, parsed, previous) {
+function section(version, parsed, previous, date) {
   const repo = process.env.GITHUB_REPOSITORY || 'sasjs/macro-dash'
   const link = previous
     ? `https://github.com/${repo}/compare/${previous}...v${version}`
@@ -82,8 +82,7 @@ function notes(version, parsed, previous) {
     if (c.type in groups) groups[c.type].push(c)
   }
 
-  const date = new Date().toISOString().slice(0, 10)
-  const lines = [`## [${version}](${link}) (${date})`, '']
+  const lines = [`## [${version}](${link})${date ? ` (${date})` : ''}`, '']
   for (const key of Object.keys(TITLES)) {
     if (!groups[key].length) continue
     lines.push(`### ${TITLES[key]}`, '')
@@ -112,7 +111,7 @@ function main() {
   const tag = `v${version}`
 
   console.log(`${level} release: ${previous || 'none'} -> ${tag} (${releasable.length} commits)`)
-  const body = notes(version, parsed, previous)
+  const body = section(version, parsed, previous, new Date().toISOString().slice(0, 10))
   console.log(body)
 
   if (DRY) {
