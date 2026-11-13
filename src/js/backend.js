@@ -66,15 +66,46 @@
      attribute - so the page knows synchronously whether it is configured,
      without waiting for a getConfig round trip. */
   var configured = !!(el && el.getAttribute("configured") === "true");
-  /* A static host cannot restamp this page: the configure service writes the
-     flag into the *streamed* index.html, which a site served straight from a
-     folder (the mock build, GitHub Pages) does not have.  There the browser
-     keeps the successful configure instead, so a visitor who has set the
-     results folder up is not asked for it again on the next load. */
-  if (!configured) {
+  /* The mock/browser build ships <meta name="sasjs-host" content="browser">.  It is
+     served from a folder, so no configure service can re-stamp this page and the
+     browser has to keep the record itself.  On a stamped target the attribute is
+     the deployment's word: a redeploy that resets it to "false" must be believed,
+     or a returning visitor is locked out of setup against an estate that has none
+     (game.js greys the configurator once configured). */
+  var browserHost = false;
+  try {
+    var hostMeta = document.querySelector('meta[name="sasjs-host"]');
+    browserHost = !!(hostMeta && hostMeta.getAttribute("content") === "browser");
+  } catch (e) {}
+  if (!configured && browserHost) {
     try {
       configured = localStorage.getItem("macrodash_configured") === "true";
     } catch (e) {}
+    /* a reset mock site (window.SASjsMock.reset(), or a drive cleared by hand)
+       holds no settings, so a remembered flag would outlive the state it
+       describes: drop it and let setup open again */
+    if (configured) reconcileConfiguredFlag();
+  }
+
+  function reconcileConfiguredFlag() {
+    var tries = 0;
+    (function poll() {
+      var mock = window.SASjsMock;
+      if (!mock || !mock.readAll) {
+        if (++tries < 20) setTimeout(poll, 250);
+        return;
+      }
+      mock.readAll().then(function (files) {
+        var has = false;
+        for (var k in (files || {})) {
+          if (/macrodash\.settings\.json$/.test(k)) { has = true; break; }
+        }
+        if (!has) {
+          configured = false;
+          try { localStorage.removeItem("macrodash_configured"); } catch (e) {}
+        }
+      }).catch(function () {});
+    })();
   }
 
   /* LAZY adapter load: sasjs.js is a big UMD bundle and a blocking
@@ -299,11 +330,13 @@
     isConfigured: function () { return configured; },
 
     /* update the in-memory flag after a successful configure() call (the
-       page itself is only re-stamped on disk, not reloaded).  On a static
+       page itself is only re-stamped on disk, not reloaded).  On a browser
        host there is no re-stamp to come back to, so remember it here too. */
     setConfigured: function () {
       configured = true;
-      try { localStorage.setItem("macrodash_configured", "true"); } catch (e) {}
+      if (browserHost) {
+        try { localStorage.setItem("macrodash_configured", "true"); } catch (e) {}
+      }
     },
     isViya: function () { return forceViya || serverType === "SASVIYA"; },
     /* test-only override: render the Viya configurator locally */

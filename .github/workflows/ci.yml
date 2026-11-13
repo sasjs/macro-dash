@@ -188,12 +188,11 @@ jobs:
       # exactly what dash.sasjs.io did.
       - name: Build the mocked site
         run: npm run mock:build
-      # a custom domain is a file in the published folder: without it Pages
-      # serves the site at github.io/<repo>/ and the DNS record points nowhere
-      - name: Add the custom domain
-        run: |
-          printf 'dash.sasjs.io\n' > sasjsbuild/mock/CNAME
-          touch sasjsbuild/mock/.nojekyll
+      # The published folder is sasjsbuild/mock: the build copies src/ into it,
+      # so the committed src/CNAME is the one place the domain is written.  Only
+      # Jekyll's marker has to be added - src/ does not carry a hidden file.
+      - name: Add .nojekyll
+        run: touch sasjsbuild/mock/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
