@@ -13,10 +13,15 @@
 
 %md_init()
 
-data scores;
-  length rank 8 name $12 time 8 score 8 amps 8 done 8;
-  stop;
-run;
+/* An empty table of the right SHAPE.  This was `data scores; length ...;
+   stop; run;`, which on SAS 9.4M9 fails with "ERROR: Variable rank is
+   uninitialized." for each column and puts the session in syntax-check mode,
+   so md_read()'s result never materialised and the leaderboard came back
+   empty however many scores existed. */
+proc sql;
+  create table scores
+    (rank num, name char(12), time num, score num, amps num, done num);
+quit;
 
 %macro md_read();
 %if %length(&md_rootdir)>0 and %mf_existds(sb.scores) %then %do;

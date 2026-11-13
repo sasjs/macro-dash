@@ -36,8 +36,17 @@ jobs:
           node-version: 24
           cache: npm
 
-      # regenerates src/sasjs.js (prepare script copies the adapter UMD)
+      # .npmrc carries ignore-scripts=true, so the adapter bundle is copied by
+      # its own step rather than by the prepare script - and the dependency
+      # gate runs on every build, refusing any advisory above the floor that is
+      # not in scripts/audit-allowlist.json with a reason.
       - run: npm ci
+
+      - name: Copy the adapter bundle (src/sasjs.js is gitignored)
+        run: npm run adapter
+
+      - name: Dependency audit gate
+        run: npm run audit:gate
 
       # physics / level sanity gate
       - run: npm test

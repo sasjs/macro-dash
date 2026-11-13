@@ -59,6 +59,7 @@ The `server` target deploys both runtimes. A SASjs Server chooses a run time per
 
 ```bash
 npm install
+npm run adapter      # .npmrc sets ignore-scripts, so this is explicit
 npm run devsetup
 ```
 
@@ -86,7 +87,8 @@ To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 - `npm test` - reachability test (BFS over engine physics for all levels)
 - `npm run mock:build` - compile + build the mocked site into `sasjsbuild/mock` (see below)
 - `npm run test:e2e` - Playwright e2e suite (6 suites / 34 assertions) against the mocked build and the no-backend `src/` build; covers the configurator, `#scores` routing, level transitions, DNF entries and the board buttons. It needs no SAS and no server: `test/e2e/run.js` serves `sasjsbuild/mock` (build it first) and the app's service worker is the backend.
-- `npm run prepare` - refresh `src/sasjs.js` from `node_modules/@sasjs/adapter`
+- `npm run adapter` - copy `src/sasjs.js` from `node_modules/@sasjs/adapter` (the repo's `.npmrc` sets `ignore-scripts=true`, so the old `prepare` hook no longer runs)
+- `npm run audit:gate` - dependency gate: fails on any advisory above `low` that is not listed in `scripts/audit-allowlist.json` with a reason
 
 ## GitHub Pages (the mocked build)
 

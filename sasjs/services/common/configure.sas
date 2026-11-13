@@ -103,8 +103,14 @@ data _null_;
     / '  @file'
     / '  @brief Macro Dash global settings - written by the configure service'
     / '**/';
-  put '%let md_rootdir=' @;
-  put "&rootdir" +(-1) ';';
+  /* Build the line in a variable and put that: the previous `@` + `+(-1)`
+     pair moved the pointer back over the last character of the path, so every
+     settings file ended `.../rootdi;`, and a `%let` written inside a
+     double-quoted literal is executed as a macro statement rather than
+     emitted (the file then held a single quote character). */
+  length mdline $512;
+  mdline='%let md_rootdir=' || "&rootdir" || ';';
+  put mdline;
 run;
 
 /* The settings are a couple of %let statements - plain FILE content.
