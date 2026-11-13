@@ -46,7 +46,7 @@ jobs:
         run: node scripts/release.mjs
 
   artefacts:
-    name: Build artefacts
+    name: Build the release artefacts
     needs: release
     if: needs.release.outputs.released == 'true'
     uses: ./.github/workflows/artefacts.yml

@@ -178,6 +178,8 @@ jobs:
         uses: actions/deploy-pages@v4
 
   build:
-    name: Build artefacts (sasjs cb)
+    # a caller job's check reports as "<caller> / <called>", so this name must
+    # differ from the job inside artefacts.yml or the check reads doubled
+    name: Build the artefacts
     needs: test
     uses: ./.github/workflows/artefacts.yml
