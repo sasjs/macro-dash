@@ -46,6 +46,16 @@ jobs:
       - name: Build the mock site
         run: npm run mock:build
 
+      # what the pages job publishes is this folder, so check it is a site and
+      # not just a copy of src/: the worker and its host are the backend there
+      - name: Check the mock site has its backend
+        run: |
+          test -s sasjsbuild/mock/sw.js
+          test -s sasjsbuild/mock/host/boot.js
+          test -s sasjsbuild/mock/host/api-browser.js
+          grep -q 'configured=' sasjsbuild/mock/index.html
+          echo "mock site: worker + host + page"
+
       # headless chromium for the Playwright suite.  Use the bundled
       # chromium (installed with --with-deps so shared libs are present)
       # - the documented, reliable path.
