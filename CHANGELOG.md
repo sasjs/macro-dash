@@ -1,3 +1,15 @@
+## [1.7.1](https://github.com/sasjs/macro-dash/compare/v1.7.0...v1.7.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **ci,deps:** ship the adapter bundle, pin the tree, and check the wait ([41c8764](https://github.com/sasjs/macro-dash/commit/41c876489a1015da77238cb4a2c8803203767b20))
+* **config:** let the app wait for the flag check before locking setup ([546617f](https://github.com/sasjs/macro-dash/commit/546617f48219f0912106c79434ab043735929cd9))
+* **mocks:** keep settings under the apploc, as the SAS service does ([f250e3b](https://github.com/sasjs/macro-dash/commit/f250e3bcbdd1490daec14692eeea0c73bce1afb0))
+* **pages:** one source for the domain, and scope the configure flag ([521e707](https://github.com/sasjs/macro-dash/commit/521e707b5e62fa578b38fb3124ac69df374a4daa))
+* **pages:** publish the mocked build, not the bare frontend ([e361a7f](https://github.com/sasjs/macro-dash/commit/e361a7f3cb4d78444fcae1d59cf5ba78c3273fba))
+* **services:** three bugs that only a live SAS runs into, and a dependency gate ([27da3c7](https://github.com/sasjs/macro-dash/commit/27da3c700084ba961d33cca0c4d64795e7796147))
+
 # [1.7.0](https://github.com/sasjs/macro-dash/compare/v1.6.0...v1.7.0) (2026-11-11)
 
 
