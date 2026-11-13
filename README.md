@@ -92,17 +92,25 @@ To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 
 ## Releases
 
-`scripts/release.mjs` owns the version, with nothing installed to do it. It reads the conventional
-commits merged since the last tag, picks major/minor/patch (`!` or a `BREAKING CHANGE:` footer
-means major), writes the version into `package.json` and both version fields of
-`package-lock.json`, prepends `CHANGELOG.md`, commits, tags, pushes, and creates the GitHub
-release. `.github/workflows/release.yml` runs it on every push to `main` and then builds and
-attaches `macro-dash-viya.sas`, `macro-dash-viya.json.zip` and `macro-dash-server.json.zip`.
+`scripts/release.mjs` owns the version, with nothing installed to do it and without ever writing to
+`main`. Two phases:
 
-    npm run release:dry   # what it would release, without writing anything
+1. `node scripts/release.mjs --propose` - run by `.github/workflows/release.yml` on every push to
+   `main` - works the next version out from the conventional commits merged since the last tag
+   (`!` or a `BREAKING CHANGE:` footer means major; on a 0.x version it means minor), bumps
+   `package.json`, both version fields of `package-lock.json` and `CHANGELOG.md` on a
+   `release/vX.Y.Z` branch, and opens or refreshes a pull request. Pushing that branch is the only
+   write it makes.
+2. When someone merges that pull request, the push to `main` runs `node scripts/release.mjs`, which
+   tags the merged commit and publishes the GitHub release. It never commits to `main`; it tags
+   what a person merged.
 
-Nothing about a release happens in the developer's working copy and no release toolchain is
-installed: the tree is a fraction of what it was when it carried one.
+The workflow then builds `macro-dash-viya.sas`, `macro-dash-viya.json.zip` and
+`macro-dash-server.json.zip` and attaches them to the release, so
+`releases/latest/download/<file>` keeps answering. The published site takes its footer version from
+the newer of `package.json` and the newest tag, so it states the release it belongs to.
+
+    npm run release:propose:dry   # the version it would propose, writing nothing
 
 ## GitHub Pages (the mocked build)
 
