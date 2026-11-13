@@ -13,10 +13,6 @@
 
 %md_init()
 
-/* An empty table of the right shape.  A DATA step with LENGTH and STOP is the
-   obvious construct, and on SAS 9.4M9 it fails: "ERROR: Variable rank is
-   uninitialized." per column, after which OBS=0 suppresses md_read()'s result
-   and the board is empty however many scores exist. */
 proc sql;
   create table scores
     (rank num, name char(12), time num, score num, amps num, done num);
