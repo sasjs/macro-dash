@@ -23,7 +23,9 @@ permissions:
   # pages: write / id-token: write are for the Pages deployment
 
 concurrency:
-  group: ci-macro-dash
+  # per ref, not workflow-wide: a run against one branch must not cancel the
+  # run for another, which is how a merge's Pages deploy goes missing
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -32,6 +34,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # the release rehearsal reads the tag range; a depth-1 tagless checkout
+          # leaves it one commit to classify, which proves only that it loads
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
