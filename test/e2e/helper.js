@@ -1,5 +1,7 @@
-/* Shared helpers for the Playwright e2e suite (runs against the local
- * @sasjs/server, whose JS mocks act as a fully-functional backend).
+/* Shared helpers for the Playwright e2e suite.  The backend it drives is the
+ * app's own mocked build (sasjsbuild/mock): a static site whose service worker
+ * answers /SASjsApi/* from @sasjs/api - no SAS, no @sasjs/server, no process
+ * other than the static file server run.js starts.
  *
  * Each test is a standalone script that exits 0 (pass) / 1 (fail); run.js
  * executes them in sequence.  No test-runner dependency - matches the
@@ -82,5 +84,42 @@ function summary(name) {
 }
 
 /* expose for the runner */
-module.exports = { APP, SRC, ok, bad, launch, press, state, levelIdx, reachPortal, summary,
+/* The app has drawn its first screens and the backend (and, on the mocked
+ * build, the service worker answering for it) is in place.  A fixed sleep is
+ * not this: on a loaded runner a press can land before the page is listening,
+ * so wait for the app's own hooks instead. */
+async function waitForApp(p, tries) {
+  for (let i = 0, n = tries || 60; i < n; i++) {
+    const ready = await p.evaluate(() => !!(window.MACRODASH_BACKEND &&
+      typeof window.MACRODASH_STATE === 'function' &&
+      window.MACRODASH_STATE()))
+      .catch(() => false);
+    if (ready) return true;
+    await p.waitForTimeout(250);
+  }
+  return false;
+}
+
+/* Configure the site the way a visitor does: press C, type the folder, Enter.
+ * Nothing is seeded - the host resolves services/common/configure from its
+ * drive and runs that stored program, which creates the folder (fs.mkdirSync
+ * recursive) and writes the settings file.  The app's own state machine
+ * (backendOn, the locked configurator, the board) follows from that. */
+async function configure(p, rootdir) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await waitForApp(p);
+    await press(p, 'KeyC');
+    await p.waitForTimeout(400);
+    if ((await p.evaluate(() => window.MACRODASH_STATE()).catch(() => '')) !== 'config') continue;
+    await p.evaluate(r => window.MACRODASH_CONFIG_SET('rootdir', r), rootdir || '/tmp/e2e-scores');
+    await press(p, 'Enter');
+    for (let i = 0; i < 60; i++) {
+      if (await p.evaluate(() => window.MACRODASH_CONFIG_DONE()).catch(() => false)) return true;
+      await p.waitForTimeout(250);
+    }
+  }
+  return false;
+}
+
+module.exports = { APP, SRC, ok, bad, launch, press, configure, waitForApp, state, levelIdx, reachPortal, summary,
   get pass() { return _pass; }, get fail() { return _fail; }, get results() { return results; } };

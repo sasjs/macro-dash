@@ -103,8 +103,9 @@ data _null_;
     / '  @file'
     / '  @brief Macro Dash global settings - written by the configure service'
     / '**/';
-  put '%let md_rootdir=' @;
-  put "&rootdir" +(-1) ';';
+  length mdline $512;
+  mdline='%let md_rootdir=' || "&rootdir" || ';';
+  put mdline;
 run;
 
 /* The settings are a couple of %let statements - plain FILE content.

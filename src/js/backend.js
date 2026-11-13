@@ -66,6 +66,56 @@
      attribute - so the page knows synchronously whether it is configured,
      without waiting for a getConfig round trip. */
   var configured = !!(el && el.getAttribute("configured") === "true");
+  /* The mock/browser build ships <meta name="sasjs-host" content="browser">.  It is
+     served from a folder, so no configure service can re-stamp this page and the
+     browser has to keep the record itself.  On a stamped target the attribute is
+     the deployment's word: a redeploy that resets it to "false" must be believed,
+     or a returning visitor is locked out of setup against an estate that has none
+     (game.js greys the configurator once configured). */
+  var browserHost = false;
+  try {
+    var hostMeta = document.querySelector('meta[name="sasjs-host"]');
+    browserHost = !!(hostMeta && hostMeta.getAttribute("content") === "browser");
+  } catch (e) {}
+  var ready = null; // resolves once the remembered flag has been checked
+  if (!configured && browserHost) {
+    try {
+      configured = localStorage.getItem("macrodash_configured") === "true";
+    } catch (e) {}
+    /* a cleared mock site (window.SASjsMock.reset(), the host's Clear button, or
+       a drive emptied by hand) holds no <apploc>/settings.json, so a remembered
+       flag would outlive the state it describes: drop it and let setup open */
+    if (configured) ready = reconcileConfiguredFlag();
+  }
+
+  /* The check is asynchronous (one IndexedDB round trip), and the app reads
+     isConfigured() at start-up - so it is exposed as a promise the caller waits
+     on.  Otherwise the clear lands after the app has already decided, and a
+     cleared site stays locked out of setup. */
+  function reconcileConfiguredFlag() {
+    return new Promise(function (resolve) {
+      var tries = 0;
+      (function poll() {
+        var mock = window.SASjsMock;
+        if (!mock || !mock.readAll) {
+          if (++tries < 20) { setTimeout(poll, 250); return; }
+          resolve();
+          return;
+        }
+        mock.readAll().then(function (files) {
+          var has = false;
+          for (var k in (files || {})) {
+            if (/\/settings\.json$/.test(k)) { has = true; break; }
+          }
+          if (!has) {
+            configured = false;
+            try { localStorage.removeItem("macrodash_configured"); } catch (e) {}
+          }
+          resolve();
+        }).catch(function () { resolve(); });
+      })();
+    });
+  }
 
   /* LAZY adapter load: sasjs.js is a big UMD bundle and a blocking
      <script src> tag delayed the title screen by seconds on slow
@@ -289,8 +339,18 @@
     isConfigured: function () { return configured; },
 
     /* update the in-memory flag after a successful configure() call (the
-       page itself is only re-stamped on disk, not reloaded) */
-    setConfigured: function () { configured = true; },
+       page itself is only re-stamped on disk, not reloaded).  On a browser
+       host there is no re-stamp to come back to, so remember it here too. */
+    setConfigured: function () {
+      configured = true;
+      if (browserHost) {
+        try { localStorage.setItem("macrodash_configured", "true"); } catch (e) {}
+      }
+    },
+    /* the browser build checks its remembered flag against the drive before
+       this answer is final (a cleared site has no settings); re-read it when
+       that lands, or the configurator stays locked on a site that was reset */
+    ready: function () { return ready || Promise.resolve(); },
     isViya: function () { return forceViya || serverType === "SASVIYA"; },
     /* test-only override: render the Viya configurator locally */
     forceViya: function (on) { forceViya = !!on; },

@@ -2,9 +2,11 @@ name: CI – Test → Build → Release → Pages
 
 # Fully self-contained pipeline: runs entirely on the runner, builds the
 # deployable artefacts with `sasjs cb` (no deploy step, no SAS/Viya
-# server push), tests the game in a real browser (headless chromium) against
-# the local SASjs Server (whose JS mocks are the backend).  semantic-release
-# runs before GitHub Pages so the homepage version matches the release.
+# server push), and tests the game in a real browser (headless chromium)
+# against its own mocked build - a static site whose service worker answers
+# /SASjsApi/* from @sasjs/api.  No SAS, no @sasjs/server, no devsetup.
+# semantic-release runs before GitHub Pages so the homepage version matches
+# the release.
 
 on:
   push:
@@ -34,17 +36,20 @@ jobs:
           node-version: 24
           cache: npm
 
-      # regenerates src/sasjs.js (prepare script copies the adapter UMD)
+      # .npmrc carries ignore-scripts=true, so the adapter bundle is copied by
+      # its own step rather than by the prepare script - and the dependency
+      # gate runs on every build, refusing any advisory above the floor that is
+      # not in scripts/audit-allowlist.json with a reason.
       - run: npm ci
+
+      - name: Copy the adapter bundle (src/sasjs.js is gitignored)
+        run: npm run adapter
+
+      - name: Dependency audit gate
+        run: npm run audit:gate
 
       # physics / level sanity gate
       - run: npm test
-
-      # the mock target builds a static site from the same services, under the
-      # CLI this repo pins: a bump that drops the browser build fails here
-      # rather than at the next person who tries it
-      - name: Build the mock site
-        run: npm run mock:build
 
       # headless chromium for the Playwright suite.  Use the bundled
       # chromium (installed with --with-deps so shared libs are present)
@@ -81,63 +86,25 @@ jobs:
               })
           "
 
-      # Cache the downloaded SASjs Server binary across runs.
-      # devsetup is idempotent - the cache just avoids re-downloading it.
-      #
-      # The key names the RELEASE, not the script that downloads it: devsetup
-      # fetches `releases/latest`, so hashing the script pins the cache to a
-      # version nothing bumps, and the runner keeps starting a binary from
-      # whenever the key was first used.
-      #
-      # What is cached is the BINARY, not the folder. tools/sasjs-server also
-      # holds sasjs_root - the drive, the sessions, the settings the mock
-      # configure service writes - and restoring that state is what makes the
-      # next run's configure answer "No webout was returned": the step passes
-      # when the drive is built in the same run (first use of a key) and fails
-      # when a previous run's drive comes back. devsetup recreates the .env and
-      # the drive, so only the download is worth keeping.
-      - name: Resolve the @sasjs/server release
-        id: server-release
+      # The mock target builds a static site from the same services, under the
+      # CLI this repo pins: a bump that drops the browser build fails here
+      # rather than at the next person who tries it.  The suite under test is
+      # this folder - run.js serves it and stops there.  No @sasjs/server, no
+      # devsetup, no SAS: a backend that needs a binary to answer is exactly
+      # what the mocked build exists to avoid.
+      - name: Build the mock site
+        run: npm run mock:build
+
+      # what the pages job publishes is this folder, so check it is a site and
+      # not just a copy of src/: the worker and its host are the backend there
+      - name: Check the mock site has its backend
         run: |
-          TAG=$(curl -sI https://github.com/sasjs/server/releases/latest \
-            | grep -i '^location:' | sed 's#.*/tag/##' | tr -d '\r')
-          # no tag means no answer (an outage, a rate limit): a unique key makes
-          # the cache miss and the binary download fresh, which is safe
-          [ -n "$TAG" ] || TAG="unknown-$(date +%s)"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "latest @sasjs/server release: $TAG"
-
-      - name: Cache SASjs Server binary
-        id: cache-server
-        uses: actions/cache@v4
-        with:
-          path: tools/sasjs-server/api-linux
-          # `-bin` so this never restores the older cache entry, which was
-          # archived from the whole folder and would unpack a second
-          # tools/sasjs-server inside api-linux
-          key: ${{ runner.os }}-sasjs-server-bin-${{ steps.server-release.outputs.tag }}
-
-      # the archive keeps file modes, but a miss-then-hit on a different runner
-      # image is not worth a mystery: make it executable either way
-      - name: Make the server binary executable
-        run: chmod +x tools/sasjs-server/api-linux 2>/dev/null || true
-
-      - name: Start local @sasjs/server + deploy app & mocks
-        run: |
-          npm run devsetup
-          curl -sS -o /dev/null -w "server: %{http_code}\n" http://localhost:5000/SASjsApi/info
-          curl -sS http://localhost:5000/AppStream/MacroDash/ | grep -o 'configured="[^"]*"'
-
-      # Configure the backend before the e2e suite (via the CLI/adapter,
-      # same path the frontend uses).  The board/DNF tests assume a
-      # configured server; the configure service also stamps the served
-      # index.html as configured="true" so the game registers a backend.
-      - name: Configure the local backend
-        run: |
-          ROOTDIR="${GITHUB_WORKSPACE}/tools/sasjs-server/sasjs_root/rootdir"
-          echo "{\"config\":[{\"rootdir\":\"${ROOTDIR}\"}]}" > /tmp/cfg.json
-          npx sasjs request "services/common/configure" --data /tmp/cfg.json -t local 2>&1
-          curl -sS http://localhost:5000/AppStream/MacroDash/ | grep -o 'configured="[^"]*"'
+          test -s sasjsbuild/mock/sw.js
+          test -s sasjsbuild/mock/host/boot.js
+          test -s sasjsbuild/mock/host/api-browser.js
+          test -s sasjsbuild/mock/sasjs.js
+          grep -q 'configured=' sasjsbuild/mock/index.html
+          echo "mock site: worker + host + page"
 
       - name: Run browser e2e suite
         run: npm run test:e2e
@@ -158,7 +125,14 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+
+      # .npmrc sets ignore-scripts, so `prepare` does not run: the adapter
+      # bundle that src/index.html loads has to be copied by this step
+      - name: Copy the adapter bundle (src/sasjs.js is gitignored)
+        run: npm run adapter
+
       # inject version number into homepage (replace every {{VERSION}} placeholder)
+      # before the build copies src/ into the published folder
       - name: Inject version
         run: |
           node - <<'EOF'
@@ -170,13 +144,21 @@ jobs:
           html = html.replaceAll('{{VERSION}}', version);
           fs.writeFileSync(indexPath, html);
           EOF
-      # disable Jekyll processing on GitHub Pages
+      # The published site is the *mocked* build, not src/: `sasjs build -t mock`
+      # writes the same page plus host/ and sw.js, a service worker that answers
+      # /SASjsApi/* from @sasjs/api.  A static host serves files only, so src/ on
+      # its own has no backend and configure answers 405.
+      - name: Build the mocked site
+        run: npm run mock:build
+      # The published folder is sasjsbuild/mock: the build copies src/ into it,
+      # so the committed src/CNAME is the one place the domain is written.  Only
+      # Jekyll's marker has to be added - src/ does not carry a hidden file.
       - name: Add .nojekyll
-        run: touch src/.nojekyll
+        run: touch sasjsbuild/mock/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: src
+          path: sasjsbuild/mock
       - id: deployment
         uses: actions/deploy-pages@v4
 

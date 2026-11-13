@@ -44,9 +44,11 @@ async function walk(dir, rel) {
 /* after a redeploy the streamed index.html is stamped configured="false"
  * again - if the mock settings say we ARE configured, re-stamp it */
 async function restampIfConfigured() {
+  // settings live under the apploc, on the drive - as <apploc>/settings.sas
+  // does on SAS (see configure.sas / md_init.sas)
   const settingsPath = path.join(
-    __dirname, "..", "tools", "sasjs-server", "sasjs_root", "drive",
-    "macrodash.settings.json");
+    __dirname, "..", "tools", "sasjs-server", "sasjs_root", "drive", "files",
+    appLoc.replace(/^\//, ""), "settings.json");
   let rootdir = "";
   try { rootdir = JSON.parse(fs.readFileSync(settingsPath, "utf8")).rootdir; } catch (e) {}
   if (!rootdir) return;

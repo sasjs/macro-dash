@@ -59,6 +59,7 @@ The `server` target deploys both runtimes. A SASjs Server chooses a run time per
 
 ```bash
 npm install
+npm run adapter      # .npmrc sets ignore-scripts, so this is explicit
 npm run devsetup
 ```
 
@@ -68,7 +69,7 @@ That's it. `devsetup` (scripts/devsetup.js) downloads the `@sasjs/server` binary
 
 The script is idempotent - existing downloads and `.env` edits are kept, and an already-running server is reused. Server logs: `tools/sasjs-server/server.log`. (If your shell exports `NODE_OPTIONS`, the bundled Node may reject it - the script already starts the server with `NODE_OPTIONS=""`.)
 
-The three backend services are executable JS mocks (same pattern as react-seed-app / Data Controller), deployed to SASjs Drive where they shadow the `.sas` services. The leaderboard works end-to-end: settings persist on the SASjs Drive (`<drive>/macrodash.settings.json`), scores in the configured rootdir as `scores.json` (the mock analogue of `sb.scores`), and the mock `configure.js` even stamps `configured="true"` into the streamed `index.html` via the Drive API - like the real SAS service. Nothing is written to /tmp.
+The three backend services are executable JS mocks (same pattern as react-seed-app / Data Controller), deployed to SASjs Drive where they shadow the `.sas` services. The leaderboard works end-to-end: settings persist on the SASjs Drive under the apploc (`<apploc>/settings.json`, the analogue of `settings.sas`), scores in the configured rootdir as `scores.json` (the mock analogue of `sb.scores`), and the mock `configure.js` even stamps `configured="true"` into the streamed `index.html` via the Drive API - like the real SAS service. Nothing is written to /tmp.
 
 ### Day-to-day
 
@@ -77,19 +78,23 @@ npm run deploy       # redeploy app to the local server (sasjs cbd -t local)
 npm run mock:deploy  # redeploy only the mocks (scripts/deploy-mocks.js)
 ```
 
-To reset the mock state: delete `<drive>/macrodash.settings.json` (under `tools/sasjs-server/sasjs_root/drive/`) and the configured rootdir's `scores.json`.
+To reset the mock state: delete the `settings.json` under `<apploc>` (on disk, `tools/sasjs-server/sasjs_root/drive/files/Public/app/macrodash/settings.json`) and the configured rootdir's `scores.json`.
 To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 
 ### Other scripts
 
 - `npm start` - static-only serving of `src/` on :8000 (no backend; localStorage mode)
 - `npm test` - reachability test (BFS over engine physics for all levels)
-- `npm run test:e2e` - Playwright e2e suite (5 suites / 24 assertions) against the local @sasjs/server + the no-backend `src/` build; covers the configurator, `#scores` routing, level transitions, DNF entries and the board buttons. Run `npm run devsetup` first.
-- `npm run prepare` - refresh `src/sasjs.js` from `node_modules/@sasjs/adapter`
+- `npm run mock:build` - compile + build the mocked site into `sasjsbuild/mock` (see below)
+- `npm run test:e2e` - Playwright e2e suite (6 suites / 34 assertions) against the mocked build and the no-backend `src/` build; covers the configurator, `#scores` routing, level transitions, DNF entries and the board buttons. It needs no SAS and no server: `test/e2e/run.js` serves `sasjsbuild/mock` (build it first) and the app's service worker is the backend.
+- `npm run adapter` - copy `src/sasjs.js` from `node_modules/@sasjs/adapter` (the repo's `.npmrc` sets `ignore-scripts=true`, so the old `prepare` hook no longer runs)
+- `npm run audit:gate` - dependency gate: fails on any advisory above `low` that is not listed in `scripts/audit-allowlist.json` with a reason
 
-## GitHub Pages (backend-free)
+## GitHub Pages (the mocked build)
 
-`.github/workflows/pages.yml` deploys the static game on every push to `main`: `npm ci` (regenerates the gitignored `src/sasjs.js`), `npm test`, then publishes `src/`. With no SAS server reachable the game simply runs in localStorage mode (personal best-run history, no shared leaderboard). The public game runs at [dash.sasjs.io](https://dash.sasjs.io) via the `src/CNAME` custom domain.
+The `pages` job in `.github/workflows/ci.yml` runs `npm run mock:build` and publishes `sasjsbuild/mock` - the same page as `src/`, plus `host/` and `sw.js`, a service worker that answers `/SASjsApi/*` from [@sasjs/api](https://github.com/sasjs/api). Visitors get the real backend contract with no server behind it: the configurator works, and the leaderboard persists in the browser's drive. The public game runs at [dash.sasjs.io](https://dash.sasjs.io) via the committed `src/CNAME` custom domain, which the build copies into the published folder.
+
+Publishing `src/` instead gives a frontend with no backend at all - every service call lands on the static host and `configure` answers 405.
 
 One-time repo setup: Settings - Pages - Source = "GitHub Actions".
 

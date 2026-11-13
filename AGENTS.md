@@ -36,7 +36,7 @@ Hard-won design decisions and platform learnings. Read this before changing the 
   - `fs` is predeclared — re-requiring it crashes the program
   - input tables arrive EITHER as inline CSV consts OR as uploaded files (`_WEBIN_FILEREF<n>` = Buffer of contents, `_WEBIN_NAME<n>`, `_WEBIN_FILE_COUNT`) — handle both; these consts are module-scope, NOT on `globalThis`
   - adapter CSV: space-separated `name:format.` headers (strip `:format.`), CRLF endings, double-quoted special values
-  - mocks persist state WITHOUT /tmp: settings on the Drive (`<drive>/macrodash.settings.json`, derived from `weboutPath` → `../../../drive`), scores as `scores.json` inside the configured rootdir (a real local folder - the analogue of `md_rootdir/scores.sas7bdat`)
+  - mocks persist state WITHOUT /tmp: settings on the Drive under the apploc (`<apploc>/settings.json`, located by resolving the drive root rather than assuming it), scores as `scores.json` inside the configured rootdir (a real local folder - the analogue of `md_rootdir/scores.sas7bdat`)
 - Mock behaviour must mirror the real services: empty leaderboard until configured + scores exist; `savescore` throws when unconfigured.
 - The `mock` target builds the same mocks into a static site: `npm run mock:build` writes `sasjsbuild/mock`, whose backend is a service worker running `sasjs/mocks` against a browser drive - no server, no SAS. `sasjs build` does not compile, so the script runs both steps. Serve the folder over http(s) (service workers need a secure context) and the game behaves as it does against `@sasjs/server`, minus the Drive's own files. Every other target is untouched.
 

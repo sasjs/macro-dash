@@ -10,8 +10,25 @@
  */
 
 const path = require('path')
-const DRIVE_ROOT = path.resolve(weboutPath, '..', '..', '..', 'drive')
-const SETTINGS_FILE = path.join(DRIVE_ROOT, 'macrodash.settings.json')
+/* Settings live under the apploc, as they do on SAS: configure.sas writes
+ * <apploc>/settings.sas with %mx_createfile and md_init.sas fetches it from
+ * there.  The JS equivalent is <apploc>/settings.json, held on the drive
+ * (<drive>/files<apploc>/), so it is a file like any other - visible to the
+ * Drive API, deployed with the app, and gone when the drive is cleared.
+ *
+ * Which drive root this session runs against: the browser host keeps it at
+ * /sasjs/drive, a @sasjs/server beside its build tree, so it is resolved
+ * rather than assumed. */
+function driveRoot() {
+  const computed = path.resolve(weboutPath, '..', '..', '..', 'drive')
+  const candidates = ['/sasjs/drive', computed]
+  for (const c of candidates) {
+    try { if (fs.existsSync(path.join(c, 'files'))) return c } catch (e) {}
+  }
+  return computed
+}
+const APP_LOC = '/' + String(_program).replace(/^\/+/, '').replace(/\/services\/.*$/, '')
+const SETTINGS_FILE = path.join(driveRoot(), 'files', APP_LOC.replace(/^\//, ''), 'settings.json')
 
 function readJson(f, fallback) {
   try {

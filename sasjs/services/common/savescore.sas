@@ -41,7 +41,7 @@ data newscore;
   a client-supplied initials string - the frontend sends no name and
   we grab it server-side with %mf_getuser().  Local mode never reaches
   this service (no backend). */
-  if missing(name) then name=%upcase(%mf_getuser());
+  if missing(name) then name=upcase("%mf_getuser()");
   else name=upcase(substr(name,1,12));
   time=tm;
   score=sc;

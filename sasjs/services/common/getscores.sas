@@ -13,10 +13,10 @@
 
 %md_init()
 
-data scores;
-  length rank 8 name $12 time 8 score 8 amps 8 done 8;
-  stop;
-run;
+proc sql;
+  create table scores
+    (rank num, name char(12), time num, score num, amps num, done num);
+quit;
 
 %macro md_read();
 %if %length(&md_rootdir)>0 and %mf_existds(sb.scores) %then %do;

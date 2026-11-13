@@ -3,7 +3,7 @@
  * uploaded file): one row, column rootdir.  Like the real service, the
  * folder is validated by actually creating it - the server is local, so
  * rootdir is a real path on this machine.  The choice persists in
- * <drive>/macrodash.settings.json (no /tmp), so getscores.js reports
+ * <apploc>/settings.json on the drive (no /tmp), so getscores.js reports
  * CONFIGURED=1 afterwards.
  *
  * Like the real service it also flips configured="false" -> "true" in the
@@ -73,13 +73,31 @@ const rows = parseCsv(getTable('config'))
 const rootdir = rows.length ? rows[0].ROOTDIR : ''
 
 const path = require('path')
-const DRIVE_ROOT = path.resolve(weboutPath, '..', '..', '..', 'drive')
-const SETTINGS_FILE = path.join(DRIVE_ROOT, 'macrodash.settings.json')
+/* Settings live under the apploc, as they do on SAS: configure.sas writes
+ * <apploc>/settings.sas with %mx_createfile and md_init.sas fetches it from
+ * there.  The JS equivalent is <apploc>/settings.json, held on the drive
+ * (<drive>/files<apploc>/), so it is a file like any other - visible to the
+ * Drive API, deployed with the app, and gone when the drive is cleared.
+ *
+ * Which drive root this session runs against: the browser host keeps it at
+ * /sasjs/drive, a @sasjs/server beside its build tree, so it is resolved
+ * rather than assumed. */
+function driveRoot() {
+  const computed = path.resolve(weboutPath, '..', '..', '..', 'drive')
+  const candidates = ['/sasjs/drive', computed]
+  for (const c of candidates) {
+    try { if (fs.existsSync(path.join(c, 'files'))) return c } catch (e) {}
+  }
+  return computed
+}
+const APP_LOC = '/' + String(_program).replace(/^\/+/, '').replace(/\/services\/.*$/, '')
+const SETTINGS_FILE = path.join(driveRoot(), 'files', APP_LOC.replace(/^\//, ''), 'settings.json')
 
 let result
 if (rootdir) {
   try {
     fs.mkdirSync(rootdir, { recursive: true }) // like %mf_mkdir
+    fs.mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true }) // the apploc
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ rootdir: rootdir }))
     result = [{ STATUS: 'configured', ROOTDIR: rootdir }]
     stampIndexHtml()

@@ -473,6 +473,17 @@
      The only service reachable while unconfigured is configure itself. */
   backendOn = backend.isConfigured ? backend.isConfigured() : false;
   if (backendOn) refreshScores();
+  /* a browser-hosted build settles its remembered flag against the drive after
+     this point: until it answers, a cleared site still looks configured and the
+     configurator is locked.  Re-read it when it lands. */
+  if (backend.ready) {
+    backend.ready().then(function () {
+      var now = backend.isConfigured ? backend.isConfigured() : false;
+      if (now === backendOn) return;
+      backendOn = now;
+      if (backendOn) refreshScores();
+    });
+  }
   /* on Viya, fetch the interactive identity up front so the username is
      available even when the app loaded already-configured (the config
      wizard only sets it when the user re-enters setup). */
