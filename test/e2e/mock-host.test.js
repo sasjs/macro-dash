@@ -82,21 +82,29 @@ async function waitForHost(p) {
 }
 
 (async () => {
+  let server = null;
   const port = process.env.MD_MOCK_PORT
     ? parseInt(process.env.MD_MOCK_PORT, 10)
     : await freePort();
-  if (await answers(port)) {
-    console.log('  FAIL port ' + port + ' already answers - refusing to drive a site this ' +
-      'test did not serve (a server left behind by an aborted run?)');
-    process.exit(1);
+  if (process.env.MD_APP) {
+    /* run.js already serves the mocked build - use that one rather than a
+       second copy of the same folder */
+    URL = process.env.MD_APP.replace(/\/?$/, '/');
+  } else {
+    if (await answers(port)) {
+      console.log('  FAIL port ' + port + ' already answers - refusing to drive a site this ' +
+        'test did not serve (a server left behind by an aborted run?)');
+      process.exit(1);
+    }
+    URL = 'http://localhost:' + port + '/';
+    server = startServer(port);
   }
-  URL = 'http://localhost:' + port + '/';
-  const server = startServer(port);
   const { b, p } = await H.launch();
   try {
-    (await waitForServer(port))
-      ? H.ok('mock host: static server up on ' + port)
-      : H.bad('mock host: nothing answering on ' + port);
+    const port_ = new global.URL(URL).port;
+    (await waitForServer(port_))
+      ? H.ok('mock host: static server up on ' + port_)
+      : H.bad('mock host: nothing answering on ' + port_);
     await p.goto(URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     (await waitForHost(p))
@@ -105,8 +113,10 @@ async function waitForHost(p) {
 
     const info = await p.evaluate(() => fetch('/SASjsApi/info')
       .then(r => r.json()).then(j => j.runTimes).catch(() => null));
-    Array.isArray(info) && info.join() === 'js'
-      ? H.ok('mock host: /SASjsApi/info runTimes js')
+    // the host answers the JS runtime; recent @sasjs/api versions also
+    // advertise 'sas', as a server does, so only 'js' is required here
+    Array.isArray(info) && info.includes('js')
+      ? H.ok('mock host: /SASjsApi/info offers runTimes js')
       : H.bad('mock host: info', JSON.stringify(info));
 
     // ---- 1. configure, then reload: the flag is the only stamp a static host has
@@ -182,7 +192,9 @@ async function waitForHost(p) {
       : H.bad('cleared site: setup locked', await H.state(p));
   } finally {
     await b.close();
-    try { process.kill(-server.pid); } catch (e) { try { server.kill(); } catch (e2) {} }
+    if (server) {
+      try { process.kill(-server.pid); } catch (e) { try { server.kill(); } catch (e2) {} }
+    }
   }
   process.exit(H.summary('mock-host'));
 })().catch(e => {

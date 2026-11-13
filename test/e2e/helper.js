@@ -1,5 +1,7 @@
-/* Shared helpers for the Playwright e2e suite (runs against the local
- * @sasjs/server, whose JS mocks act as a fully-functional backend).
+/* Shared helpers for the Playwright e2e suite.  The backend it drives is the
+ * app's own mocked build (sasjsbuild/mock): a static site whose service worker
+ * answers /SASjsApi/* from @sasjs/api - no SAS, no @sasjs/server, no process
+ * other than the static file server run.js starts.
  *
  * Each test is a standalone script that exits 0 (pass) / 1 (fail); run.js
  * executes them in sequence.  No test-runner dependency - matches the
@@ -82,5 +84,20 @@ function summary(name) {
 }
 
 /* expose for the runner */
-module.exports = { APP, SRC, ok, bad, launch, press, state, levelIdx, reachPortal, summary,
+/* Set the results folder the way a visitor does, so the app's own state machine
+ * (backendOn, the locked configurator, the board) ends up where a configured
+ * site has it.  Backends on the mock host start with an empty drive. */
+async function configure(p, rootdir) {
+  await press(p, 'KeyC');
+  await p.waitForTimeout(400);
+  await p.evaluate(r => window.MACRODASH_CONFIG_SET('rootdir', r), rootdir || '/tmp/e2e-scores');
+  await press(p, 'Enter');
+  for (let i = 0; i < 40; i++) {
+    if (await p.evaluate(() => window.MACRODASH_CONFIG_DONE()).catch(() => false)) return true;
+    await p.waitForTimeout(250);
+  }
+  return false;
+}
+
+module.exports = { APP, SRC, ok, bad, launch, press, configure, state, levelIdx, reachPortal, summary,
   get pass() { return _pass; }, get fail() { return _fail; }, get results() { return results; } };

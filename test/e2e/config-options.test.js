@@ -35,10 +35,18 @@ const OPTS = [
         : H.bad(opt.name, JSON.stringify(got) + ' expected ' + opt.mode + '/' + opt.task);
     }
 
-    // lock: once configured, KeyC must not re-enter the configurator
-    await p.evaluate(() => { window.MACRODASH_BACKEND.setConfigured(); window.MACRODASH_FORCE_VIYA(false); });
+    // lock: once the site is configured, KeyC must not re-enter the configurator.
+    // The wizard above only moved option fields, so configure for real, then
+    // reload: a configured site boots that way - from the stamped page on a
+    // server host, from the remembered flag on the browser one.
+    await p.evaluate(() => window.MACRODASH_FORCE_VIYA(false));
     await p.evaluate(() => window.MACRODASH_FORCE('title'));
     await p.waitForTimeout(200);
+    (await H.configure(p))
+      ? H.ok('site configured')
+      : H.bad('configure', await p.evaluate(() => window.MACRODASH_CONFIG_MSG()));
+    await p.reload({ waitUntil: 'domcontentloaded' });
+    await p.waitForTimeout(1500);
     await H.press(p, 'KeyC');
     await p.waitForTimeout(400);
     (await H.state(p)) === 'title' ? H.ok('configurator locked after configure') : H.bad('lock', await H.state(p));

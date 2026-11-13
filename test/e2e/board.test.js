@@ -9,6 +9,9 @@ const H = require('./helper');
     try {
       await p.goto(H.APP, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await p.waitForTimeout(1500);
+      // a mock-host backend starts on an empty drive: give it a results folder
+      await H.configure(p);
+      await p.waitForTimeout(300);
 
       // seed 2 finishes + 1 DNF via the backend (mock savescore)
       await p.evaluate(() => new Promise(res => {
