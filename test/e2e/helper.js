@@ -84,9 +84,11 @@ function summary(name) {
 }
 
 /* expose for the runner */
-/* Set the results folder the way a visitor does, so the app's own state machine
- * (backendOn, the locked configurator, the board) ends up where a configured
- * site has it.  Backends on the mock host start with an empty drive. */
+/* Configure the site the way a visitor does: press C, type the folder, Enter.
+ * Nothing is seeded - the host resolves services/common/configure from its
+ * drive and runs that stored program, which creates the folder (fs.mkdirSync
+ * recursive) and writes the settings file.  The app's own state machine
+ * (backendOn, the locked configurator, the board) follows from that. */
 async function configure(p, rootdir) {
   await press(p, 'KeyC');
   await p.waitForTimeout(400);
