@@ -45,7 +45,7 @@ The high-score board is at `#scores` — a refreshable page (deep-link, reload, 
 
 ### Deploy from source / to other platforms
 
-The release artefact is built by CI from `sasjs/` on every push to `main`. To build and deploy directly from a checkout (e.g. for SAS 9 or SASjs Server, or to push to Viya without the release script), the targets live in `sasjs/sasjsconfig.json`:
+The release artefact is built from `sasjs/` when a release is published (see [Releases](#releases)). To build and deploy directly from a checkout (e.g. for SAS 9 or SASjs Server, or to push to Viya without the release script), the targets live in `sasjs/sasjsconfig.json`:
 
 ```bash
 sasjs cbd -t viya      # or: sas9 | server
@@ -89,6 +89,17 @@ To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 - `npm run test:e2e` - Playwright e2e suite (6 suites / 34 assertions) against the mocked build and the no-backend `src/` build; covers the configurator, `#scores` routing, level transitions, DNF entries and the board buttons. It needs no SAS and no server: `test/e2e/run.js` serves `sasjsbuild/mock` (build it first) and the app's service worker is the backend.
 - `npm run adapter` - copy `src/sasjs.js` from `node_modules/@sasjs/adapter` (the repo's `.npmrc` sets `ignore-scripts=true`, so the old `prepare` hook no longer runs)
 - `npm run audit:gate` - dependency gate: fails on any advisory above `low` that is not listed in `scripts/audit-allowlist.json` with a reason
+
+## Releases
+
+[release-please](https://github.com/googleapis/release-please) owns the version: it keeps one
+pull request open with the next version and the changelog, worked out from the conventional
+commits merged since the last tag. Merging that pull request writes `package.json` and
+`CHANGELOG.md`, tags the commit and publishes the release, and `.github/workflows/release-please.yml`
+then attaches `macro-dash-viya.sas` and `macro-dash-server.json.zip` to it.
+
+Nothing about a release happens in the developer's working copy: `npm install` no longer pulls a
+release toolchain, so the tree is about a quarter of what it was.
 
 ## GitHub Pages (the mocked build)
 

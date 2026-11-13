@@ -5,8 +5,8 @@ name: CI – Test → Build → Release → Pages
 # server push), and tests the game in a real browser (headless chromium)
 # against its own mocked build - a static site whose service worker answers
 # /SASjsApi/* from @sasjs/api.  No SAS, no @sasjs/server, no devsetup.
-# semantic-release runs before GitHub Pages so the homepage version matches
-# the release.
+# Releases are release-please's job (release-please.yml); this workflow tests,
+# builds the artefacts, and deploys the site stamped with the version it finds.
 
 on:
   push:
@@ -19,7 +19,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  # needed for the release job (semantic-release writes a release + tags)
+  # pages: write / id-token: write are for the Pages deployment
 
 concurrency:
   group: ci-macro-dash
@@ -111,15 +111,16 @@ jobs:
 
   pages:
     name: Deploy GitHub Pages
-    needs: release
+    needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
         with:
-          # pick up package.json version bumped by the release job, so the
-          # injected {{VERSION}} on the homepage matches the released version
           ref: main
+          # the footer reads the newest tag as well as package.json, so the
+          # tags have to be in the checkout
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -131,14 +132,28 @@ jobs:
       - name: Copy the adapter bundle (src/sasjs.js is gitignored)
         run: npm run adapter
 
-      # inject version number into homepage (replace every {{VERSION}} placeholder)
-      # before the build copies src/ into the published folder
+      # The footer states the version of the deployment. release-please writes
+      # package.json when a release PR merges and tags the same commit, and on a
+      # push the two arrive together - but not necessarily before this job reads
+      # them, so the newer of the two wins.
       - name: Inject version
         run: |
+          VERSION=$(node -e "
+            const cur = require('./package.json').version;
+            let tag = process.argv[1] || '';
+            const p = (s) => String(s).replace(/^v/, '').split('.').map(Number);
+            const newer = (a, b) => {
+              const [a1, a2, a3] = p(a), [b1, b2, b3] = p(b);
+              return (a1 - b1) || (a2 - b2) || (a3 - b3);
+            };
+            console.log(tag && newer(tag, cur) > 0 ? tag.replace(/^v/, '') : cur);
+          " "$(git describe --tags --abbrev=0 2>/dev/null)")
+          echo "footer version: $VERSION"
+          export VERSION
+          # replaces every {{VERSION}} placeholder in the page the build copies
           node - <<'EOF'
           const fs = require('fs');
-          const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
-          const version = pkg.version;
+          const version = process.env.VERSION;
           const indexPath = 'src/index.html';
           let html = fs.readFileSync(indexPath,'utf8');
           html = html.replaceAll('{{VERSION}}', version);
@@ -197,52 +212,9 @@ jobs:
           test -s artefacts/macro-dash-viya.sas
           test -s artefacts/macro-dash-server.json.zip
 
-      # persist the artefacts for the release job
+      # keep them with the run, so a build that breaks is inspectable
       - uses: actions/upload-artifact@v4
         with:
           name: macro-dash-artefacts
           path: artefacts/
           if-no-files-found: error
-
-  release:
-    name: Release
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    # semantic-release writes the version/CHANGELOG back to the repo,
-    # creates a tag, and publishes a release - needs write on contents.
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - run: npm ci
-
-      # restore the artefacts built by the build job
-      - uses: actions/download-artifact@v4
-        with:
-          name: macro-dash-artefacts
-          path: artefacts
-
-      # semantic-release finds its config with cosmiconfig, which reads a
-      # "release" key in package.json BEFORE .releaserc.json.  A key there
-      # replaces the whole plugin list, so the default plugins publish the
-      # release with no artefacts attached and every
-      # releases/latest/download/<file> URL answers 404.
-      - name: Check the release config is not shadowed
-        run: |
-          node -e "const p=require('./package.json'); if (p.release) { console.error('package.json carries a \"release\" key, which shadows .releaserc.json - the release would publish with no artefacts. Delete the key; the release config lives in .releaserc.json.'); process.exit(1) }"
-
-      - name: Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release

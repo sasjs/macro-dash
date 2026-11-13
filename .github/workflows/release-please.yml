@@ -1,0 +1,57 @@
+name: Release
+
+# release-please keeps one pull request open with the next version and the
+# changelog, worked out from the conventional commits merged since the last
+# tag. Merging that pull request is the release: it writes package.json and
+# CHANGELOG.md, tags the commit, and publishes the GitHub release. This
+# workflow then attaches the deployable artefacts, so
+# releases/latest/download/<file> keeps answering.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          # bumps package.json and CHANGELOG.md, and tags vX.Y.Z
+          release-type: node
+
+      - uses: actions/checkout@v4
+        if: steps.release.outputs.release_created
+
+      - uses: actions/setup-node@v4
+        if: steps.release.outputs.release_created
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build the deployable artefacts
+        if: steps.release.outputs.release_created
+        run: |
+          npm ci
+          npm run adapter
+          npx sasjs cb -t viya
+          mkdir -p artefacts
+          cp sasjsbuild/viya.sas artefacts/macro-dash-viya.sas
+          npx sasjs cb -t server
+          cp sasjsbuild/server.json.zip artefacts/macro-dash-server.json.zip
+
+      - name: Attach them to the release
+        if: steps.release.outputs.release_created
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ steps.release.outputs.tag_name }}" artefacts/* --clobber
