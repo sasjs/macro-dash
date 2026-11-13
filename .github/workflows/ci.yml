@@ -117,9 +117,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # pick up package.json version bumped by the release job, so the
-          # injected {{VERSION}} on the homepage matches the released version
           ref: main
+          # the release job tags before this job runs, and the tag is what the
+          # footer states, so the tags have to come with the checkout
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -135,10 +136,13 @@ jobs:
       # before the build copies src/ into the published folder
       - name: Inject version
         run: |
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+          [ -n "$VERSION" ] || VERSION=$(node -p "require('./package.json').version")
+          echo "footer version: $VERSION"
+          export VERSION
           node - <<'EOF'
           const fs = require('fs');
-          const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
-          const version = pkg.version;
+          const version = process.env.VERSION;
           const indexPath = 'src/index.html';
           let html = fs.readFileSync(indexPath,'utf8');
           html = html.replaceAll('{{VERSION}}', version);
