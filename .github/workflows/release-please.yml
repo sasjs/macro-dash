@@ -10,6 +10,8 @@ name: Release
 on:
   push:
     branches: [main]
+  # a manual run opens or refreshes the release PR without waiting for a commit
+  workflow_dispatch:
 
 permissions:
   contents: write

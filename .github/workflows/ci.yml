@@ -1,4 +1,4 @@
-name: CI – Test → Build → Release → Pages
+name: CI – Test → Build → Pages
 
 # Fully self-contained pipeline: runs entirely on the runner, builds the
 # deployable artefacts with `sasjs cb` (no deploy step, no SAS/Viya
