@@ -10,7 +10,7 @@
     "deploy": "sasjs cbd -t local",
     "mock:build": "sasjs compile -t mock && sasjs build -t mock",
     "mock:deploy": "node scripts/deploy-mocks.js",
-    "prepare": "cp node_modules/@sasjs/adapter/index.js src/sasjs.js",
+    "prepare": "npm run adapter",
     "semantic-release": "semantic-release",
     "adapter": "cp node_modules/@sasjs/adapter/dist/sasjs-adapter.js src/sasjs.js",
     "audit:gate": "node scripts/audit.mjs"
