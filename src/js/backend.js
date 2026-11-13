@@ -77,35 +77,44 @@
     var hostMeta = document.querySelector('meta[name="sasjs-host"]');
     browserHost = !!(hostMeta && hostMeta.getAttribute("content") === "browser");
   } catch (e) {}
+  var ready = null; // resolves once the remembered flag has been checked
   if (!configured && browserHost) {
     try {
       configured = localStorage.getItem("macrodash_configured") === "true";
     } catch (e) {}
-    /* a reset mock site (window.SASjsMock.reset(), or a drive cleared by hand)
-       holds no settings, so a remembered flag would outlive the state it
-       describes: drop it and let setup open again */
-    if (configured) reconcileConfiguredFlag();
+    /* a cleared mock site (window.SASjsMock.reset(), the host's Clear button, or
+       a drive emptied by hand) holds no settings, so a remembered flag would
+       outlive the state it describes: drop it and let setup open again */
+    if (configured) ready = reconcileConfiguredFlag();
   }
 
+  /* The check is asynchronous (one IndexedDB round trip), and the app reads
+     isConfigured() at start-up - so it is exposed as a promise the caller waits
+     on.  Otherwise the clear lands after the app has already decided, and a
+     cleared site stays locked out of setup. */
   function reconcileConfiguredFlag() {
-    var tries = 0;
-    (function poll() {
-      var mock = window.SASjsMock;
-      if (!mock || !mock.readAll) {
-        if (++tries < 20) setTimeout(poll, 250);
-        return;
-      }
-      mock.readAll().then(function (files) {
-        var has = false;
-        for (var k in (files || {})) {
-          if (/macrodash\.settings\.json$/.test(k)) { has = true; break; }
+    return new Promise(function (resolve) {
+      var tries = 0;
+      (function poll() {
+        var mock = window.SASjsMock;
+        if (!mock || !mock.readAll) {
+          if (++tries < 20) { setTimeout(poll, 250); return; }
+          resolve();
+          return;
         }
-        if (!has) {
-          configured = false;
-          try { localStorage.removeItem("macrodash_configured"); } catch (e) {}
-        }
-      }).catch(function () {});
-    })();
+        mock.readAll().then(function (files) {
+          var has = false;
+          for (var k in (files || {})) {
+            if (/macrodash\.settings\.json$/.test(k)) { has = true; break; }
+          }
+          if (!has) {
+            configured = false;
+            try { localStorage.removeItem("macrodash_configured"); } catch (e) {}
+          }
+          resolve();
+        }).catch(function () { resolve(); });
+      })();
+    });
   }
 
   /* LAZY adapter load: sasjs.js is a big UMD bundle and a blocking
@@ -338,6 +347,10 @@
         try { localStorage.setItem("macrodash_configured", "true"); } catch (e) {}
       }
     },
+    /* the browser build checks its remembered flag against the drive before
+       this answer is final (a cleared site has no settings); re-read it when
+       that lands, or the configurator stays locked on a site that was reset */
+    ready: function () { return ready || Promise.resolve(); },
     isViya: function () { return forceViya || serverType === "SASVIYA"; },
     /* test-only override: render the Viya configurator locally */
     forceViya: function (on) { forceViya = !!on; },
