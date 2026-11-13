@@ -132,10 +132,10 @@ jobs:
       - name: Copy the adapter bundle (src/sasjs.js is gitignored)
         run: npm run adapter
 
-      # The footer states the version of the deployment. release-please writes
-      # package.json when a release PR merges and tags the same commit, and on a
-      # push the two arrive together - but not necessarily before this job reads
-      # them, so the newer of the two wins.
+      # The footer states the version of the deployment. scripts/release.mjs
+      # writes package.json and tags the same commit, and the two arrive
+      # together - but not necessarily before this job reads them, so the newer
+      # of the two wins.
       - name: Inject version
         run: |
           VERSION=$(node -e "

@@ -1,0 +1,67 @@
+name: Release
+
+# scripts/release.mjs works the next version out from the conventional commits
+# merged since the last tag, writes it into package.json and package-lock.json,
+# prepends CHANGELOG.md, commits, tags, pushes, and creates the GitHub release.
+# This workflow runs it, then builds the deployable artefacts and attaches them,
+# so releases/latest/download/<file> keeps answering.
+#
+# The release commit is an ordinary push to main, so ci.yml runs on it and the
+# published site is stamped with the new version. This workflow runs on it too
+# and finds nothing to release.
+
+on:
+  push:
+    branches: [main]
+  # a manual run releases whatever has been merged since the last tag
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # the script tags, and reads the tags to find the last release
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Work out and publish the release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/release.mjs
+
+  artefacts:
+    name: Build artefacts
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: ./.github/workflows/artefacts.yml
+
+  attach:
+    name: Attach the artefacts to the release
+    needs: [release, artefacts]
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.artefacts.outputs.artifact-name }}
+          path: artefacts
+
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ needs.release.outputs.tag }}" artefacts/* --clobber

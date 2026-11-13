@@ -92,14 +92,17 @@ To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 
 ## Releases
 
-[release-please](https://github.com/googleapis/release-please) owns the version: it keeps one
-pull request open with the next version and the changelog, worked out from the conventional
-commits merged since the last tag. Merging that pull request writes `package.json` and
-`CHANGELOG.md`, tags the commit and publishes the release, and `.github/workflows/release-please.yml`
-then attaches `macro-dash-viya.sas` and `macro-dash-server.json.zip` to it.
+`scripts/release.mjs` owns the version, with nothing installed to do it. It reads the conventional
+commits merged since the last tag, picks major/minor/patch (`!` or a `BREAKING CHANGE:` footer
+means major), writes the version into `package.json` and both version fields of
+`package-lock.json`, prepends `CHANGELOG.md`, commits, tags, pushes, and creates the GitHub
+release. `.github/workflows/release.yml` runs it on every push to `main` and then builds and
+attaches `macro-dash-viya.sas`, `macro-dash-viya.json.zip` and `macro-dash-server.json.zip`.
 
-Nothing about a release happens in the developer's working copy: `npm install` no longer pulls a
-release toolchain, so the tree is about a quarter of what it was.
+    npm run release:dry   # what it would release, without writing anything
+
+Nothing about a release happens in the developer's working copy and no release toolchain is
+installed: the tree is a fraction of what it was when it carried one.
 
 ## GitHub Pages (the mocked build)
 

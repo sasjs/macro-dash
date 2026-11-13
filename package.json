@@ -3,16 +3,18 @@
   "version": "1.7.1",
   "private": true,
   "scripts": {
-    "test": "node test/reachability.js",
-    "test:e2e": "node test/e2e/run.js",
-    "start": "cd src && python3 -m http.server 8000",
-    "devsetup": "node scripts/devsetup.js",
+    "adapter": "cp node_modules/@sasjs/adapter/dist/sasjs-adapter.js src/sasjs.js",
+    "audit:gate": "node scripts/audit.mjs",
     "deploy": "sasjs cbd -t local",
+    "devsetup": "node scripts/devsetup.js",
     "mock:build": "sasjs compile -t mock && sasjs build -t mock",
     "mock:deploy": "node scripts/deploy-mocks.js",
     "prepare": "npm run adapter",
-    "adapter": "cp node_modules/@sasjs/adapter/dist/sasjs-adapter.js src/sasjs.js",
-    "audit:gate": "node scripts/audit.mjs"
+    "release": "node scripts/release.mjs",
+    "release:dry": "node scripts/release.mjs --dry-run",
+    "start": "cd src && python3 -m http.server 8000",
+    "test": "node test/reachability.js",
+    "test:e2e": "node test/e2e/run.js"
   },
   "devDependencies": {
     "@sasjs/cli": "6.30.0",
