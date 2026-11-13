@@ -124,13 +124,19 @@ async function waitForHost(p) {
     await p.waitForTimeout(400);
     await p.evaluate(() => window.MACRODASH_CONFIG_SET('rootdir', '/tmp/e2e-scores'));
     await H.press(p, 'Enter');
-    for (let i = 0; i < 40; i++) {
+    /* the app gives configure 30s (backend.js CONFIGURE_TIMEOUT_MS), so the
+       wait here has to outlast it: a shorter budget fails the suite on a loaded
+       runner while the app is still working, which is a slow machine, not a
+       fault. 35s, and the message says which it was. */
+    const started = Date.now();
+    for (let i = 0; i < 140; i++) {
       if (await p.evaluate(() => window.MACRODASH_CONFIG_DONE())) break;
       await p.waitForTimeout(250);
     }
     (await p.evaluate(() => window.MACRODASH_BACKEND.isConfigured()))
       ? H.ok('mock host: configure succeeds')
-      : H.bad('mock host: configure', await p.evaluate(() => window.MACRODASH_CONFIG_MSG()));
+      : H.bad('mock host: configure after ' + Math.round((Date.now() - started) / 100) / 10 + 's',
+        await p.evaluate(() => window.MACRODASH_CONFIG_MSG()));
 
     await p.reload({ waitUntil: 'domcontentloaded' });
     await waitForHost(p);
