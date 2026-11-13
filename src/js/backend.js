@@ -83,8 +83,8 @@
       configured = localStorage.getItem("macrodash_configured") === "true";
     } catch (e) {}
     /* a cleared mock site (window.SASjsMock.reset(), the host's Clear button, or
-       a drive emptied by hand) holds no settings, so a remembered flag would
-       outlive the state it describes: drop it and let setup open again */
+       a drive emptied by hand) holds no <apploc>/settings.json, so a remembered
+       flag would outlive the state it describes: drop it and let setup open */
     if (configured) ready = reconcileConfiguredFlag();
   }
 
@@ -105,7 +105,7 @@
         mock.readAll().then(function (files) {
           var has = false;
           for (var k in (files || {})) {
-            if (/macrodash\.settings\.json$/.test(k)) { has = true; break; }
+            if (/\/settings\.json$/.test(k)) { has = true; break; }
           }
           if (!has) {
             configured = false;

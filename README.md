@@ -68,7 +68,7 @@ That's it. `devsetup` (scripts/devsetup.js) downloads the `@sasjs/server` binary
 
 The script is idempotent - existing downloads and `.env` edits are kept, and an already-running server is reused. Server logs: `tools/sasjs-server/server.log`. (If your shell exports `NODE_OPTIONS`, the bundled Node may reject it - the script already starts the server with `NODE_OPTIONS=""`.)
 
-The three backend services are executable JS mocks (same pattern as react-seed-app / Data Controller), deployed to SASjs Drive where they shadow the `.sas` services. The leaderboard works end-to-end: settings persist on the SASjs Drive (`<drive>/macrodash.settings.json`), scores in the configured rootdir as `scores.json` (the mock analogue of `sb.scores`), and the mock `configure.js` even stamps `configured="true"` into the streamed `index.html` via the Drive API - like the real SAS service. Nothing is written to /tmp.
+The three backend services are executable JS mocks (same pattern as react-seed-app / Data Controller), deployed to SASjs Drive where they shadow the `.sas` services. The leaderboard works end-to-end: settings persist on the SASjs Drive under the apploc (`<apploc>/settings.json`, the analogue of `settings.sas`), scores in the configured rootdir as `scores.json` (the mock analogue of `sb.scores`), and the mock `configure.js` even stamps `configured="true"` into the streamed `index.html` via the Drive API - like the real SAS service. Nothing is written to /tmp.
 
 ### Day-to-day
 
@@ -77,7 +77,7 @@ npm run deploy       # redeploy app to the local server (sasjs cbd -t local)
 npm run mock:deploy  # redeploy only the mocks (scripts/deploy-mocks.js)
 ```
 
-To reset the mock state: delete `<drive>/macrodash.settings.json` (under `tools/sasjs-server/sasjs_root/drive/`) and the configured rootdir's `scores.json`.
+To reset the mock state: delete the `settings.json` under `<apploc>` (on disk, `tools/sasjs-server/sasjs_root/drive/files/Public/app/macrodash/settings.json`) and the configured rootdir's `scores.json`.
 To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 
 ### Other scripts
