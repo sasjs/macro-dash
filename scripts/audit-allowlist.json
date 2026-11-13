@@ -14,55 +14,6 @@
     "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
-    "source": 1240603,
-    "package": "axios",
-    "severity": "high",
-    "title": "Axios: ReDoS in fromDataURI data: URL parser freezes the Node event loop (DoS)",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
-  },
-  {
-    "source": 1240604,
-    "package": "axios",
-    "severity": "high",
-    "title": "Axios: ReDoS (O(N\u00b2)) in shouldBypassProxy host normalization, reachable via untrusted redirect Location",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
-  },
-  {
-    "source": 1240605,
-    "package": "axios",
-    "severity": "high",
-    "title": "Axios: Prototype Pollution Gadget in axios toFormData Options",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
-  },
-  {
-    "source": 1240607,
-    "package": "axios",
-    "severity": "high",
-    "title": "Axios: HTTP/2 adapter bypasses configured DNS lookup and proxy controls",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
-  },
-  {
-    "source": 1240608,
-    "package": "axios",
-    "severity": "high",
-    "title": "Axios: Denial of Service via Unhandled 'error' Event in HTTP/2 ClientHttp2Session Initialization",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
-  },
-  {
-    "source": 1240628,
-    "package": "axios",
-    "severity": "high",
-    "title": "Axios: Node HTTP adapter prototype-pollution gadget allows request socket hijack via inherited createConnection",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
-  },
-  {
-    "source": 1240634,
-    "package": "axios",
-    "severity": "high",
-    "title": "Axios: maxRedirects: 0 is not enforced by the fetch adapter, allowing redirect-based SSRF",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
-  },
-  {
     "source": 1130591,
     "package": "brace-expansion",
     "severity": "high",
@@ -231,41 +182,6 @@
     "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
-    "source": 1240600,
-    "package": "axios",
-    "severity": "moderate",
-    "title": "Axios: Prototype pollution gadget in fetch adapter can alter outbound requests",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
-  },
-  {
-    "source": 1240601,
-    "package": "axios",
-    "severity": "moderate",
-    "title": "Axios: Prototype-Pollution Gadget in the Default Instance Allows Inherited Object.prototype.method to Override HTTP Method",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
-  },
-  {
-    "source": 1240626,
-    "package": "axios",
-    "severity": "moderate",
-    "title": "Axios: Header Injection via Inherited headers After Minimal Interceptor",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
-  },
-  {
-    "source": 1240627,
-    "package": "axios",
-    "severity": "moderate",
-    "title": "Axios: Fetch Adapter Header Injection via Inherited FormData getHeaders",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
-  },
-  {
-    "source": 1240629,
-    "package": "axios",
-    "severity": "moderate",
-    "title": "Axios: CIDR-form NO_PROXY entries are ignored, causing proxy exclusion bypass for internal IP ranges",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
-  },
-  {
     "source": 1240103,
     "package": "brace-expansion",
     "severity": "moderate",
@@ -277,7 +193,7 @@
     "package": "glob",
     "severity": "moderate",
     "title": "Glob: AbortSignal cancellation bypass allows post-timeout filesystem traversal",
-    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1241676,

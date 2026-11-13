@@ -12,7 +12,7 @@
     "mock:deploy": "node scripts/deploy-mocks.js",
     "prepare": "cp node_modules/@sasjs/adapter/index.js src/sasjs.js",
     "semantic-release": "semantic-release",
-    "adapter": "cp node_modules/@sasjs/adapter/index.js src/sasjs.js",
+    "adapter": "cp node_modules/@sasjs/adapter/dist/sasjs-adapter.js src/sasjs.js",
     "audit:gate": "node scripts/audit.mjs"
   },
   "devDependencies": {
@@ -25,7 +25,7 @@
     "semantic-release": "25.0.9"
   },
   "dependencies": {
-    "@sasjs/adapter": "4.19.0",
+    "@sasjs/adapter": "6.1.0",
     "@sasjs/core": "5.1.0"
   }
 }
