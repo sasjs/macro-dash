@@ -6,7 +6,7 @@ const H = require('./helper');
   try {
     // 1. deep-link #scores -> board
     await p.goto(H.APP + '#scores', { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await H.waitForApp(p, 20);
+    (await H.waitForApp(p, 20)) || H.bad('app ready', 'timed out');
     let s = await H.state(p), h = await p.evaluate(() => location.hash);
     (s === 'board' && h === '#scores') ? H.ok('deep-link #scores') : H.bad('deep-link', s + ' ' + h);
 

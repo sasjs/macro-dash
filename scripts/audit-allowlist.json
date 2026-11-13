@@ -4,454 +4,454 @@
     "package": "handlebars",
     "severity": "critical",
     "title": "Handlebars: JavaScript Injection via AST Type Confusion in compile (bypass of CVE-2026-33937)",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1242173,
     "package": "handlebars",
     "severity": "critical",
     "title": "Handlebars: JavaScript Injection via Own Property Check Bypass",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240603,
     "package": "axios",
     "severity": "high",
     "title": "Axios: ReDoS in fromDataURI data: URL parser freezes the Node event loop (DoS)",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1240604,
     "package": "axios",
     "severity": "high",
     "title": "Axios: ReDoS (O(N\u00b2)) in shouldBypassProxy host normalization, reachable via untrusted redirect Location",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1240605,
     "package": "axios",
     "severity": "high",
     "title": "Axios: Prototype Pollution Gadget in axios toFormData Options",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1240607,
     "package": "axios",
     "severity": "high",
     "title": "Axios: HTTP/2 adapter bypasses configured DNS lookup and proxy controls",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1240608,
     "package": "axios",
     "severity": "high",
     "title": "Axios: Denial of Service via Unhandled 'error' Event in HTTP/2 ClientHttp2Session Initialization",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1240628,
     "package": "axios",
     "severity": "high",
     "title": "Axios: Node HTTP adapter prototype-pollution gadget allows request socket hijack via inherited createConnection",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1240634,
     "package": "axios",
     "severity": "high",
     "title": "Axios: maxRedirects: 0 is not enforced by the fetch adapter, allowing redirect-based SSRF",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1130591,
     "package": "brace-expansion",
     "severity": "high",
     "title": "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1130734,
     "package": "brace-expansion",
     "severity": "high",
     "title": "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240107,
     "package": "brace-expansion",
     "severity": "high",
     "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240111,
     "package": "brace-expansion",
     "severity": "high",
     "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1242604,
     "package": "follow-redirects",
     "severity": "high",
     "title": "follow-redirects array-form headers bypass cross-origin credential stripping",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1242605,
     "package": "follow-redirects",
     "severity": "high",
     "title": "follow-redirects sensitiveHeaders regex escaping can expose credential headers",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1244003,
     "package": "follow-redirects",
     "severity": "high",
     "title": "follow-redirects: Cross-realm sensitiveHeaders arrays are discarded and custom credentials can follow redirects",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1130722,
     "package": "ip-address",
     "severity": "high",
     "title": "ip-address: Address4 decodes leading-zero octets as decimal while resolvers decode them as octal, allowing SSRF and trust-boundary bypass",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1193727,
     "package": "js-yaml",
     "severity": "high",
     "title": "js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1145647,
     "package": "tar",
     "severity": "high",
     "title": "node-tar: Uncontrolled recursion in mapHas/filesFilter allows uncatchable stack-overflow DoS via crafted long-path tar with member selection",
-    "reason": "Bundled inside the release toolchain (semantic-release and the npm it carries). Not on the path this repo's build or runtime takes, and `overrides` cannot reach a bundled dependency, so it cannot be cleared from here."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240041,
     "package": "undici",
     "severity": "high",
     "title": "undici vulnerable to Denial of Service via unrequested WebSocket subprotocol",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240042,
     "package": "undici",
     "severity": "high",
     "title": "undici vulnerable to Denial of Service via unrequested WebSocket subprotocol",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240050,
     "package": "undici",
     "severity": "high",
     "title": "undici vulnerable to TLS certificate validation bypass via dropped connect options in BalancedPool",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243113,
     "package": "undici",
     "severity": "high",
     "title": "undici vulnerable to Denial of Service via unhandled error on excessive content-encodings",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243114,
     "package": "undici",
     "severity": "high",
     "title": "undici vulnerable to Denial of Service via unhandled error on excessive content-encodings",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243473,
     "package": "undici",
     "severity": "high",
     "title": "undici vulnerable to cache poisoning and cross-user disclosure via cross-origin redirects",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243475,
     "package": "undici",
     "severity": "high",
     "title": "undici vulnerable to TLS certificate validation bypass via dropped tls options in Agent",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243476,
     "package": "undici",
     "severity": "high",
     "title": "undici vulnerable to TLS certificate validation bypass via dropped tls options in Agent",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243478,
     "package": "undici",
     "severity": "high",
     "title": "undici vulnerable to Denial of Service via TLS 1.2 certificate-changing renegotiation",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243479,
     "package": "undici",
     "severity": "high",
     "title": "undici vulnerable to Denial of Service via TLS 1.2 certificate-changing renegotiation",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240038,
     "package": "undici",
     "severity": "low",
     "title": "undici vulnerable to downstream response splitting via retry interceptor",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240039,
     "package": "undici",
     "severity": "low",
     "title": "undici vulnerable to downstream response splitting via retry interceptor",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240048,
     "package": "undici",
     "severity": "low",
     "title": "undici vulnerable to response truncation via oversized chunked responses in the dump interceptor",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240052,
     "package": "undici",
     "severity": "low",
     "title": "undici vulnerable to caching and replay of unsafe HTTP method responses",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240600,
     "package": "axios",
     "severity": "moderate",
     "title": "Axios: Prototype pollution gadget in fetch adapter can alter outbound requests",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1240601,
     "package": "axios",
     "severity": "moderate",
     "title": "Axios: Prototype-Pollution Gadget in the Default Instance Allows Inherited Object.prototype.method to Override HTTP Method",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1240626,
     "package": "axios",
     "severity": "moderate",
     "title": "Axios: Header Injection via Inherited headers After Minimal Interceptor",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1240627,
     "package": "axios",
     "severity": "moderate",
     "title": "Axios: Fetch Adapter Header Injection via Inherited FormData getHeaders",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1240629,
     "package": "axios",
     "severity": "moderate",
     "title": "Axios: CIDR-form NO_PROXY entries are ignored, causing proxy exclusion bypass for internal IP ranges",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1240103,
     "package": "brace-expansion",
     "severity": "moderate",
     "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1244013,
     "package": "glob",
     "severity": "moderate",
     "title": "Glob: AbortSignal cancellation bypass allows post-timeout filesystem traversal",
-    "reason": "Bundled inside the release toolchain (semantic-release and the npm it carries). Not on the path this repo's build or runtime takes, and `overrides` cannot reach a bundled dependency, so it cannot be cleared from here."
+    "reason": "Bundled into src/sasjs.js - the @sasjs/adapter UMD this repo ships to the browser. Only the adapter's Node-only paths reach it, and the bundle cannot be patched from here: the fix arrives with an @sasjs/adapter release."
   },
   {
     "source": 1241676,
     "package": "handlebars",
     "severity": "moderate",
     "title": "Handlebars: JavaScript Injection via Unsafe Inline Embedding of Precompiled Templates",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1130723,
     "package": "ip-address",
     "severity": "moderate",
     "title": "ip-address: a CIDR suffix on the parsed address suppresses special-use classification and can bypass SSRF and trust-boundary checks",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1130724,
     "package": "ip-address",
     "severity": "moderate",
     "title": "ip-address: misclassification of IPv4-mapped/NAT64 IPv6 addresses can bypass SSRF and trust-boundary checks",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1239948,
     "package": "ip-address",
     "severity": "moderate",
     "title": "ip-address: Address6.isLinkLocal() recognizes fe80::/64 rather than fe80::/10, allowing SSRF and trust-boundary bypass to on-link hosts",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1239949,
     "package": "ip-address",
     "severity": "moderate",
     "title": "ip-address: no classifier recognizes the NAT64 local-use range 64:ff9b:1::/48, allowing SSRF and trust-boundary bypass",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240097,
     "package": "ip-address",
     "severity": "moderate",
     "title": "ip-address: isInSubnet() and isHostInSubnet() compare addresses of different families as if they shared an address space, allowing an allowlist check to admit an address outside its range",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240098,
     "package": "ip-address",
     "severity": "moderate",
     "title": "ip-address: Address6 builds a parse diagnostic proportional to the input with no length bound, allowing a single long string to stall or crash the process",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1242883,
     "package": "ip-address",
     "severity": "moderate",
     "title": "ip-address: Address6 matches a zone identifier in quadratic time ahead of its length limit, allowing a single long string to stall the process",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1244623,
     "package": "minimatch",
     "severity": "moderate",
     "title": "minimatch has potential denial of service via globparts amplification",
-    "reason": "Bundled inside the release toolchain (semantic-release and the npm it carries). Not on the path this repo's build or runtime takes, and `overrides` cannot reach a bundled dependency, so it cannot be cleared from here."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243380,
     "package": "postcss-selector-parser",
     "severity": "moderate",
     "title": "PostCSS: Quadratic complexity in flat selector parsing allows CPU exhaustion",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1130716,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to downstream response desynchronization via retry interceptor",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1130727,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to CRLF Injection via blob-like body 'type' property",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1130732,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to cookie attribute injection via unsanitized domain and unparsed setCookie fields",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1239933,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to Denial of Service via unhandled error in WebSocket permessage-deflate decompression",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1239934,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to Denial of Service via unhandled error in WebSocket permessage-deflate decompression",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240036,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to Denial of Service via orphaned RetryHandler response body",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240044,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to Denial of Service via unbounded decompression of compressed responses",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240046,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to cross-user cookie disclosure via Set-Cookie caching in shared caches",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1240055,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to Denial of Service via WebSocketStream unclean close",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243078,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to Denial of Service via unbounded memory in the EventSource parser",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243079,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to Denial of Service via unbounded memory in the EventSource parser",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243081,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to Subresource Integrity bypass via non-lowercase algorithm tokens",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243481,
     "package": "undici",
     "severity": "moderate",
     "title": "undici WebSocket client vulnerable to Denial of Service via unbounded automatic PONG buffering",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243482,
     "package": "undici",
     "severity": "moderate",
     "title": "undici WebSocket client vulnerable to Denial of Service via unbounded automatic PONG buffering",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   },
   {
     "source": 1243484,
     "package": "undici",
     "severity": "moderate",
     "title": "undici vulnerable to Denial of Service via unhandled exception in the decompress interceptor",
-    "reason": "In the development tree only (not shipped in the built site). Reviewed 2026-11-13; remove this entry once the dependency bump clears it."
+    "reason": "In the build toolchain only (the pinned CLI, semantic-release and what it carries). Not in the published site, and `overrides` cannot reach a bundled dependency; the fix arrives with a release of that package."
   }
 ]

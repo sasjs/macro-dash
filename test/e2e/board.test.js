@@ -11,7 +11,7 @@ const H = require('./helper');
     const { b, p } = await H.launch();
     try {
       await p.goto(H.APP, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await H.waitForApp(p);
+      (await H.waitForApp(p)) || H.bad('app ready', 'timed out');
       // a fresh host has no results folder: run the configure service, and
       // fail here rather than at a later assertion if it did not take
       (await H.configure(p))
