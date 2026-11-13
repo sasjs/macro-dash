@@ -180,41 +180,4 @@ jobs:
   build:
     name: Build artefacts (sasjs cb)
     needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - run: npm ci
-
-      # compile + build the deployable artefacts locally, per platform.
-      # No deploy: `cb` only compiles/builds to sasjsbuild/.  The viya
-      # and server targets just select the config; nothing reaches a server.
-      - name: Build Viya artefact
-        run: |
-          npx sasjs cb -t viya
-          mkdir -p artefacts
-          cp sasjsbuild/viya.sas artefacts/macro-dash-viya.sas
-          cp sasjsbuild/viya.json.zip artefacts/macro-dash-viya.json.zip
-
-      - name: Build Server artefact
-        run: |
-          npx sasjs cb -t server
-          mkdir -p artefacts
-          cp sasjsbuild/server.json.zip artefacts/macro-dash-server.json.zip
-
-      - name: Verify build artefacts
-        run: |
-          ls -lh artefacts
-          test -s artefacts/macro-dash-viya.sas
-          test -s artefacts/macro-dash-server.json.zip
-
-      # keep them with the run, so a build that breaks is inspectable
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macro-dash-artefacts
-          path: artefacts/
-          if-no-files-found: error
+    uses: ./.github/workflows/artefacts.yml
