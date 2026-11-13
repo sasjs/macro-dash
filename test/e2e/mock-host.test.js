@@ -10,37 +10,61 @@
  *      and C still opens the configurator.  Without the await in game.js this
  *      test fails with the state stuck on "title".
  *
- * Build first: `npm run mock:build` (the CI test job does this before devsetup).
+ * Build first: `npm run mock:build` - and after `devsetup`, which recompiles
+ * into sasjsbuild and removes this folder (the CI job builds it immediately
+ * before the suite for that reason).
  */
 const fs = require('fs');
 const path = require('path');
+const net = require('net');
+const http = require('http');
 const { spawn } = require('child_process');
 const H = require('./helper');
 
 const ROOT = path.join(__dirname, '..', '..', 'sasjsbuild', 'mock');
-const PORT = parseInt(process.env.MD_MOCK_PORT || '8124', 10);
-const URL = 'http://localhost:' + PORT + '/';
+let URL = null; // set once the port is known
 
-function startServer() {
+/* A fixed port hides its own failure: the child's EADDRINUSE exit is invisible
+ * with stdio ignored, anything already answering satisfies the readiness poll,
+ * and the suite then drives a build it did not serve.  Ask the OS for a free
+ * port instead; MD_MOCK_PORT still wins if a caller needs a known one. */
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.unref();
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const port = srv.address().port;
+      srv.close(() => resolve(port));
+    });
+  });
+}
+
+function answers(port) {
+  return new Promise(resolve => {
+    const req = http.get({ host: '127.0.0.1', port, path: '/' }, res => {
+      res.resume();
+      resolve(true);
+    });
+    req.on('error', () => resolve(false));
+    req.setTimeout(1000, () => { req.destroy(); resolve(false); });
+  });
+}
+
+function startServer(port) {
   if (!fs.existsSync(path.join(ROOT, 'sw.js'))) {
     console.log('  FAIL sasjsbuild/mock has no sw.js - run npm run mock:build');
     process.exit(1);
   }
-  const child = spawn('python3', ['-m', 'http.server', String(PORT)],
+  const child = spawn('python3', ['-m', 'http.server', String(port)],
     { cwd: ROOT, stdio: 'ignore', detached: true });
   child.unref();
   return child;
 }
 
-async function waitForServer() {
-  const http = require('http');
+async function waitForServer(port) {
   for (let i = 0; i < 40; i++) {
-    const up = await new Promise(resolve => {
-      const req = http.get(URL, res => { res.resume(); resolve(res.statusCode === 200); });
-      req.on('error', () => resolve(false));
-      req.setTimeout(1000, () => { req.destroy(); resolve(false); });
-    });
-    if (up) return true;
+    if (await answers(port)) return true;
     await new Promise(r => setTimeout(r, 250));
   }
   return false;
@@ -58,10 +82,21 @@ async function waitForHost(p) {
 }
 
 (async () => {
-  const server = startServer();
+  const port = process.env.MD_MOCK_PORT
+    ? parseInt(process.env.MD_MOCK_PORT, 10)
+    : await freePort();
+  if (await answers(port)) {
+    console.log('  FAIL port ' + port + ' already answers - refusing to drive a site this ' +
+      'test did not serve (a server left behind by an aborted run?)');
+    process.exit(1);
+  }
+  URL = 'http://localhost:' + port + '/';
+  const server = startServer(port);
   const { b, p } = await H.launch();
   try {
-    await waitForServer();
+    (await waitForServer(port))
+      ? H.ok('mock host: static server up on ' + port)
+      : H.bad('mock host: nothing answering on ' + port);
     await p.goto(URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     (await waitForHost(p))
@@ -109,7 +144,7 @@ async function waitForHost(p) {
             const orig = v.readAll;
             v.readAll = function (...args) {
               return new Promise((resolve, reject) => {
-                setTimeout(() => orig.apply(v, args).then(resolve, reject), 1200);
+                setTimeout(() => orig.apply(v, args).then(resolve, reject), 3000);
               });
             };
           }
@@ -120,7 +155,13 @@ async function waitForHost(p) {
     await p.waitForTimeout(1500);
     await p.evaluate(() => localStorage.setItem('macrodash_configured', 'true'));
     await p.reload({ waitUntil: 'domcontentloaded' });
-    await p.waitForTimeout(300);
+    /* a wall clock is not the wait: on a loaded runner the evaluate below
+       would throw on an undefined MACRODASH_BACKEND and the run would report
+       "mock-host threw" instead of a named failure.  The injected readAll delay
+       keeps the race window open across this wait. */
+    (await waitForHost(p))
+      ? H.ok('cleared site: backend is up after the reload')
+      : H.bad('cleared site: no backend after the reload');
 
     (await p.evaluate(() => window.MACRODASH_BACKEND.isConfigured()))
       ? H.ok('cleared site: the flag answers first (the race the fix covers)')
