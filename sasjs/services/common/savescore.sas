@@ -41,10 +41,9 @@ data newscore;
   a client-supplied initials string - the frontend sends no name and
   we grab it server-side with %mf_getuser().  Local mode never reaches
   this service (no backend). */
-  /* %mf_getuser() resolves to a bare TOKEN in open code: unquoted, the
-     generated statement was `name=SYSADMIN;` - a reference to a variable that
-     does not exist, which aborted the step for every run the frontend sends
-     without a name (that is every backend run) */
+  /* Quote it: %mf_getuser() resolves to a bare TOKEN in open code, so an
+     unquoted use becomes `name=SYSADMIN;` - a reference to a variable that does
+     not exist, which aborts the step. */
   if missing(name) then name=upcase("%mf_getuser()");
   else name=upcase(substr(name,1,12));
   time=tm;

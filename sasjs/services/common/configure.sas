@@ -103,11 +103,10 @@ data _null_;
     / '  @file'
     / '  @brief Macro Dash global settings - written by the configure service'
     / '**/';
-  /* Build the line in a variable and put that: the previous `@` + `+(-1)`
-     pair moved the pointer back over the last character of the path, so every
-     settings file ended `.../rootdi;`, and a `%let` written inside a
-     double-quoted literal is executed as a macro statement rather than
-     emitted (the file then held a single quote character). */
+  /* The line is assembled outside quotes and put from a variable.  A %let
+     inside a double-quoted literal is executed as a macro statement rather
+     than emitted, and the @ / +(-1) column arithmetic that avoids a separating
+     blank also overwrites the last character of the path. */
   length mdline $512;
   mdline='%let md_rootdir=' || "&rootdir" || ';';
   put mdline;

@@ -13,11 +13,10 @@
 
 %md_init()
 
-/* An empty table of the right SHAPE.  This was `data scores; length ...;
-   stop; run;`, which on SAS 9.4M9 fails with "ERROR: Variable rank is
-   uninitialized." for each column and puts the session in syntax-check mode,
-   so md_read()'s result never materialised and the leaderboard came back
-   empty however many scores existed. */
+/* An empty table of the right shape.  A DATA step with LENGTH and STOP is the
+   obvious construct, and on SAS 9.4M9 it fails: "ERROR: Variable rank is
+   uninitialized." per column, after which OBS=0 suppresses md_read()'s result
+   and the board is empty however many scores exist. */
 proc sql;
   create table scores
     (rank num, name char(12), time num, score num, amps num, done num);

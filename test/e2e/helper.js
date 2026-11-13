@@ -86,8 +86,8 @@ function summary(name) {
 /* expose for the runner */
 /* The app has drawn its first screens and the backend (and, on the mocked
  * build, the service worker answering for it) is in place.  A fixed sleep is
- * not this: on a loaded CI runner the first press landed before the page was
- * listening, the configurator never opened, and the suite blamed the board. */
+ * not this: on a loaded runner a press can land before the page is listening,
+ * so wait for the app's own hooks instead. */
 async function waitForApp(p, tries) {
   for (let i = 0, n = tries || 60; i < n; i++) {
     const ready = await p.evaluate(() => !!(window.MACRODASH_BACKEND &&

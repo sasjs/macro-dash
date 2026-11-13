@@ -139,9 +139,8 @@ jobs:
           EOF
       # The published site is the *mocked* build, not src/: `sasjs build -t mock`
       # writes the same page plus host/ and sw.js, a service worker that answers
-      # /SASjsApi/* from @sasjs/api.  Uploading src/ publishes a frontend with no
-      # backend at all, where configure answers 405 from GitHub Pages - which is
-      # exactly what dash.sasjs.io did.
+      # /SASjsApi/* from @sasjs/api.  A static host serves files only, so src/ on
+      # its own has no backend and configure answers 405.
       - name: Build the mocked site
         run: npm run mock:build
       # The published folder is sasjsbuild/mock: the build copies src/ into it,
