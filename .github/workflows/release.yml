@@ -1,9 +1,10 @@
 name: Release
 
-# scripts/release.mjs works the next version out from the conventional commits
-# merged since the last tag, tags the commit that was merged, and publishes the
-# release. No commit is made and no branch is touched: package.json states 0.0.0
-# and the tag is the only record of a version. This workflow then builds the
+# @sasjs/release works the next version out from the conventional commits merged
+# since the last tag, and creates the tag and the release in one call. No commit
+# is made, no branch is touched and no tag is pushed with git: the tag is created
+# by the release API at the commit being released. package.json states 0.0.0 and
+# the tag is the only record of a version. This workflow then builds the
 # deployable artefacts with that version stamped into them and attaches them, so
 # releases/latest/download/<file> keeps answering.
 
@@ -37,11 +38,16 @@ jobs:
         with:
           node-version: 24
 
+      # only the release tool is needed here - the artefacts are built in the
+      # job below - so this install is a small, pinned tree rather than a build
+      - name: Install the release tool
+        run: npm ci
+
       - name: Tag and publish, if there is anything to release
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/release.mjs
+        run: npm run release -- --host github --release --output "$GITHUB_OUTPUT"
 
   artefacts:
     name: Build the release artefacts
