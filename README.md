@@ -95,7 +95,7 @@ To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 The git tag is the only record of a version. `package.json` states `0.0.0` and nothing writes it,
 and no release makes a commit on any branch.
 
-`scripts/release.mjs` (zero dependencies) runs in `.github/workflows/release.yml` on every push to
+`@sasjs/release` (zero dependencies, pinned in `devDependencies`) runs in `.github/workflows/release.yml` on every push to
 `main`: it reads the conventional commits since the last tag (`!` or a `BREAKING CHANGE:` footer is
 major, minor while the major is 0; `feat` minor; `fix`, `perf`, `refactor` patch), picks the next
 version, tags the merged commit `vX.Y.Z`, and publishes the release with notes built from those
