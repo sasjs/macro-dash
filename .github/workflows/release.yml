@@ -43,14 +43,15 @@ jobs:
       - name: Install the release tool
         run: npm ci
 
-      # `--no-assets`: the artefacts are built from this tag (the version is
-      # stamped into the streamed page), so the release block names files that do
-      # not exist yet. The attach job uploads them.
+      # `--no-assets --draft`: the artefacts are built from this tag (the version is
+      # stamped into the streamed page), so the release block names files that do not
+      # exist yet. The release stays invisible until the attach job has uploaded
+      # them, which is what keeps releases/latest/download from answering 404.
       - name: Tag and publish, if there is anything to release
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release -- --host github --release --no-assets --output "$GITHUB_OUTPUT"
+        run: npm run release -- --host github --release --no-assets --draft --output "$GITHUB_OUTPUT"
 
   artefacts:
     name: Build the release artefacts
@@ -81,7 +82,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.artefacts.outputs.artifact-name }}
-          path: sasjsrelease
+          path: sasjsbuild
 
       - name: Attach the assets the config names
         env:
