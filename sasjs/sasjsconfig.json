@@ -39,7 +39,7 @@
       },
       "appLoc": "/Users/viyademo18/macrodash",
       "contextName": "Compute Reusable",
-      "sasjsBuildFolder": "sasjsbuild/viya"
+      "sasjsBuildFolder": "sasjsrelease/viya"
     },
     {
       "name": "sas9",
@@ -84,23 +84,23 @@
         "deployServicePack": true,
         "deployScripts": []
       },
-      "sasjsBuildFolder": "sasjsbuild/server"
+      "sasjsBuildFolder": "sasjsrelease/server"
     }
   ],
   "release": {
     "assets": [
       {
-        "path": "sasjsbuild/viya/viya.sas",
+        "path": "sasjsrelease/viya/viya.sas",
         "name": "macro-dash-viya.sas",
         "label": "SASjs Viya App"
       },
       {
-        "path": "sasjsbuild/viya/viya.json.zip",
+        "path": "sasjsrelease/viya/viya.json.zip",
         "name": "macro-dash-viya.json.zip",
         "label": "SASjs Viya App, streamed"
       },
       {
-        "path": "sasjsbuild/server/server.json.zip",
+        "path": "sasjsrelease/server/server.json.zip",
         "name": "macro-dash-server.json.zip",
         "label": "SASjs Server App"
       }
