@@ -49,28 +49,30 @@ jobs:
 
       # compile + build the deployable artefacts locally, per platform.
       # No deploy: `cb` only compiles/builds to sasjsbuild/.
+      #
+      # Nothing is renamed here: the release block in sasjs/sasjsconfig.json says
+      # which files the release publishes and under what name, so the build writes
+      # them where they belong and one place describes them.
       - name: Build Viya artefact
-        run: |
-          npx sasjs cb -t viya
-          mkdir -p artefacts
-          cp sasjsbuild/viya.sas artefacts/macro-dash-viya.sas
-          cp sasjsbuild/viya.json.zip artefacts/macro-dash-viya.json.zip
+        run: npx sasjs cb -t viya
 
       - name: Build Server artefact
-        run: |
-          npx sasjs cb -t server
-          mkdir -p artefacts
-          cp sasjsbuild/server.json.zip artefacts/macro-dash-server.json.zip
+        run: npx sasjs cb -t server
 
       - name: Verify build artefacts
         run: |
-          ls -lh artefacts
-          test -s artefacts/macro-dash-viya.sas
-          test -s artefacts/macro-dash-viya.json.zip
-          test -s artefacts/macro-dash-server.json.zip
+          ls -lh sasjsbuild/viya sasjsbuild/server
+          test -s sasjsbuild/viya/viya.sas
+          test -s sasjsbuild/viya/viya.json.zip
+          test -s sasjsbuild/server/server.json.zip
 
+      # the three the release names, and only those: each target's folder also holds
+      # what its pack was compiled from
       - uses: actions/upload-artifact@v4
         with:
           name: macro-dash-artefacts
-          path: artefacts/
+          path: |
+            sasjsbuild/viya/viya.sas
+            sasjsbuild/viya/viya.json.zip
+            sasjsbuild/server/server.json.zip
           if-no-files-found: error
