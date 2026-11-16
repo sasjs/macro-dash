@@ -92,6 +92,9 @@ jobs:
       - name: Cut the release and attach the artefacts
         id: cut
         env:
+          # the tool takes the host, the API and the repository from the runner; the
+          # token still has to be handed to the step, since it is not in the
+          # environment by default
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run release -- --release --output "$GITHUB_OUTPUT"
 
