@@ -81,7 +81,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.artefacts.outputs.artifact-name }}
-          path: sasjsrelease
+          path: sasjsbuild
 
       - name: Attach the assets the config names
         env:
