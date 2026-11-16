@@ -1,6 +1,5 @@
 tools/
 sasjsbuild/
-sasjsrelease/
 sasjsresults/
 node_modules/
 .env*

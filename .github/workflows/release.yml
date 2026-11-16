@@ -77,7 +77,7 @@ jobs:
 
       # back to the paths the build wrote, since the release block names those:
       # an artefact bundle is rooted at the least common ancestor of what was
-      # uploaded, so the three files arrive flat and belong under sasjsrelease/
+      # uploaded, so the three files arrive flat and belong under sasjsbuild/
       - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.artefacts.outputs.artifact-name }}

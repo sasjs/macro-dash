@@ -61,10 +61,10 @@ jobs:
 
       - name: Verify build artefacts
         run: |
-          ls -lh sasjsrelease/viya sasjsrelease/server
-          test -s sasjsrelease/viya/viya.sas
-          test -s sasjsrelease/viya/viya.json.zip
-          test -s sasjsrelease/server/server.json.zip
+          ls -lh sasjsbuild/viya sasjsbuild/server
+          test -s sasjsbuild/viya/viya.sas
+          test -s sasjsbuild/viya/viya.json.zip
+          test -s sasjsbuild/server/server.json.zip
 
       # the three the release names, and only those: each target's folder also holds
       # what its pack was compiled from
@@ -72,7 +72,7 @@ jobs:
         with:
           name: macro-dash-artefacts
           path: |
-            sasjsrelease/viya/viya.sas
-            sasjsrelease/viya/viya.json.zip
-            sasjsrelease/server/server.json.zip
+            sasjsbuild/viya/viya.sas
+            sasjsbuild/viya/viya.json.zip
+            sasjsbuild/server/server.json.zip
           if-no-files-found: error
