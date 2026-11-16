@@ -1,12 +1,15 @@
 name: Release
 
 # @sasjs/release works the next version out from the conventional commits merged
-# since the last tag, and creates the tag and the release in one call. No commit
-# is made, no branch is touched and no tag is pushed with git: the tag is created
-# by the release API at the commit being released. package.json states 0.0.0 and
-# the tag is the only record of a version. This workflow then builds the
-# deployable artefacts with that version stamped into them and attaches them, so
-# releases/latest/download/<file> keeps answering.
+# since the last tag. Nothing about that needs the tag to exist: the version is
+# computed, so the artefacts can be built from it first - with the version stamped
+# into the streamed page - and the release then cut with the files already in hand.
+#
+# That ordering is the whole point. A release created before its artefacts exist is
+# one whose download links answer 404 until an attach finishes, and one that can be
+# published empty if the attach fails. Here the files are on disk when the release
+# is made, so the tool uploads them in the same call and refuses to run without
+# them. No draft, nothing to attach afterwards.
 
 on:
   push:
@@ -22,71 +25,85 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Release
+  version:
+    name: Work out the next version
     runs-on: ubuntu-latest
     outputs:
-      released: ${{ steps.release.outputs.released }}
-      version: ${{ steps.release.outputs.version }}
-      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.classify.outputs.version }}
+      tag: ${{ steps.classify.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # the tags are the version history, and the tag is what gets made
+          # the tags are the version history this reads
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      # only the release tool is needed here - the artefacts are built in the
-      # job below - so this install is a small, pinned tree rather than a build
+      # only the release tool is needed to classify, so this is the pinned tree that
+      # holds it rather than the whole build
       - name: Install the release tool
         run: npm ci
 
-      # `--no-assets --draft`: the artefacts are built from this tag (the version is
-      # stamped into the streamed page), so the release block names files that do not
-      # exist yet. The release stays invisible until the attach job has uploaded
-      # them, which is what keeps releases/latest/download from answering 404.
-      - name: Tag and publish, if there is anything to release
-        id: release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release -- --host github --release --no-assets --draft --output "$GITHUB_OUTPUT"
+      # `--dry-run` tags nothing, creates nothing and sends nothing: it prints what
+      # the commits say the next version is. An empty `version` means nothing to
+      # release, which is what the jobs below key off.
+      - name: Classify the commits since the last tag
+        id: classify
+        run: npm run release -- --dry-run --output "$GITHUB_OUTPUT"
 
   artefacts:
     name: Build the release artefacts
-    needs: release
-    if: needs.release.outputs.released == 'true'
+    needs: version
+    if: needs.version.outputs.version != ''
     uses: ./.github/workflows/artefacts.yml
     with:
-      version: ${{ needs.release.outputs.version }}
+      version: ${{ needs.version.outputs.version }}
 
-  attach:
-    name: Attach the artefacts to the release
-    needs: [release, artefacts]
-    if: needs.release.outputs.released == 'true'
+  cut:
+    name: Cut the release with its artefacts
+    needs: [version, artefacts]
+    if: needs.version.outputs.version != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # same commit the version was worked out from: this job releases THAT sha
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      # the same install the release job uses: the tool is the tool
       - name: Install the release tool
         run: npm ci
 
-      # back to the paths the build wrote, since the release block names those:
-      # an artefact bundle is rooted at the least common ancestor of what was
-      # uploaded, so the three files arrive flat and belong under sasjsbuild/
+      # back to the paths the build wrote, since the release block names those: an
+      # artefact bundle is rooted at the least common ancestor of what was uploaded,
+      # so the three files arrive flat and belong under sasjsbuild/
       - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.artefacts.outputs.artifact-name }}
           path: sasjsbuild
 
-      - name: Attach the assets the config names
+      # One call: the version is recomputed from the same commits, the release is
+      # created and the files the config names are uploaded with it. The tool refuses
+      # to tag or release anything when one of those files is not on disk, so this
+      # cannot produce a release whose downloads are missing.
+      - name: Cut the release and attach the artefacts
+        id: cut
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release -- --release --output "$GITHUB_OUTPUT"
+
+      # the artefacts carry a version stamped into them, so a release naming a
+      # different one would be a release whose page disagrees with its own contents
+      - name: Check the release is the version the artefacts were built from
         run: |
-          npm run release -- --attach "${{ needs.release.outputs.tag }}" \
-            --host github --repo "${{ github.repository }}"
+          set -euo pipefail
+          built="${{ needs.version.outputs.version }}"
+          released="${{ steps.cut.outputs.version }}"
+          if [ "$built" != "$released" ]; then
+            echo "::error::artefacts were built as $built and the release cut $released"
+            exit 1
+          fi
+          echo "released $released, built as $built"
