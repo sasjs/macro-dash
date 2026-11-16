@@ -93,7 +93,7 @@ jobs:
         id: cut
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release -- --release --output "$GITHUB_OUTPUT"
+        run: npm run release -- --host github --release --output "$GITHUB_OUTPUT"
 
       # the artefacts carry a version stamped into them, so a release naming a
       # different one would be a release whose page disagrees with its own contents
