@@ -43,11 +43,14 @@ jobs:
       - name: Install the release tool
         run: npm ci
 
+      # `--no-assets`: the artefacts are built from this tag (the version is
+      # stamped into the streamed page), so the release block names files that do
+      # not exist yet. The attach job uploads them.
       - name: Tag and publish, if there is anything to release
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release -- --host github --release --output "$GITHUB_OUTPUT"
+        run: npm run release -- --host github --release --no-assets --output "$GITHUB_OUTPUT"
 
   artefacts:
     name: Build the release artefacts
@@ -74,7 +77,7 @@ jobs:
 
       # back to the paths the build wrote, since the release block names those:
       # an artefact bundle is rooted at the least common ancestor of what was
-      # uploaded, so the three files arrive flat and belong under sasjsrelease/
+      # uploaded, so the three files arrive flat and belong under sasjsbuild/
       - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.artefacts.outputs.artifact-name }}
