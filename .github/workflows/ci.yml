@@ -11,7 +11,6 @@ name: CI – Test → Build → Pages
 
 on:
   push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -29,8 +28,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secret-scan:
+    name: Secret scan (Gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # Use the MIT-licensed CLI directly: gitleaks-action requires an
+      # organization license. Verify the pinned Linux x64 release before use.
+      - name: Install Gitleaks v8.30.1
+        run: |
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/gitleaks.tar.gz" \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          printf '%s  %s\n' '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb' "$RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+      - name: Scan committed history
+        run: '"$RUNNER_TEMP/gitleaks" git --redact --exit-code 1 .'
+
   test:
     name: Tests (browser automation)
+    # Feature-branch pushes only need the secret scan; PRs run the full suite.
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -181,5 +203,5 @@ jobs:
     # a caller job's check reports as "<caller> / <called>", so this name must
     # differ from the job inside artefacts.yml or the check reads doubled
     name: Build the artefacts
-    needs: test
+    needs: [test, secret-scan]
     uses: ./.github/workflows/artefacts.yml
