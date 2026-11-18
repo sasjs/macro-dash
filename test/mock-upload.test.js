@@ -8,7 +8,7 @@ const { test } = require('node:test')
 
 const serviceDir = path.join(__dirname, '../sasjs/mocks/sasjs/services/common')
 
-function run(service, uploadName, csv) {
+function run(service, uploadName, csv, failure) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'macro-upload-'))
   try {
     const weboutPath = path.join(root, 'sessions/s1/webout.txt')
@@ -22,12 +22,19 @@ function run(service, uploadName, csv) {
     const upload = path.join(root, 'staged.csv')
     fs.writeFileSync(other, 'x:$char1.\r\nx')
     fs.writeFileSync(upload, typeof csv === 'function' ? csv(root) : csv)
+    if (failure === 'missing') fs.unlinkSync(upload)
+    const serviceFs = failure === 'unreadable' ? Object.assign({}, fs, {
+      readFileSync(file, ...args) {
+        if (file === upload) throw Object.assign(new Error('permission denied'), { code: 'EACCES' })
+        return fs.readFileSync(file, ...args)
+      }
+    }) : fs
     const source = fs.readFileSync(path.join(serviceDir, service + '.js'), 'utf8')
     const execute = new Function('require', 'fs', 'weboutPath', '_program', '_METAUSER',
       'SASJSPROCESSMODE', 'fetch', '_WEBIN_FILE_COUNT', '_WEBIN_NAME1',
       '_WEBIN_FILEREF1', '_WEBIN_NAME2', '_WEBIN_FILEREF2',
       'let _webout;\n' + source + '\nreturn JSON.parse(_webout)')
-    return execute(require, fs, weboutPath, '/Public/app/macrodash/services/common/' + service,
+    return execute(require, serviceFs, weboutPath, '/Public/app/macrodash/services/common/' + service,
       'tester', 'mock', () => Promise.reject(new Error('no server')), 2,
       'unrelated', other, uploadName, upload)
   } finally {
@@ -49,3 +56,11 @@ test('savescore reads the named staged upload, not its path', () => {
   assert.equal(result.scores[0].TIME, 12.5)
   assert.equal(result.result[0].RANK, 1)
 })
+
+for (const [service, table] of [['configure', 'config'], ['savescore', 'savescore']]) {
+  for (const [failure, code] of [['missing', 'ENOENT'], ['unreadable', 'EACCES']]) {
+    test(`${service} surfaces a ${failure} staged file instead of treating it as absent`, () => {
+      assert.throws(() => run(service, table, 'header\r\nvalue', failure), { code })
+    })
+  }
+}
