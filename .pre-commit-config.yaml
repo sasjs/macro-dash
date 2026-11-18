@@ -1,0 +1,9 @@
+# Install pre-commit >=3 and run `pre-commit install` to enable this optional hook.
+# The Go hook builds Gitleaks from source (Go >=1.24.11); pre-commit >=3 can
+# bootstrap Go if it is not installed, requiring network access on first use.
+# It scans the staged git diff; CI scans committed history independently.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

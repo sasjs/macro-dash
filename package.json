@@ -7,17 +7,17 @@
     "audit:gate": "node scripts/audit.mjs",
     "deploy": "sasjs cbd -t local",
     "devsetup": "node scripts/devsetup.js",
-    "mock:build": "sasjs compile -t mock && sasjs build -t mock",
+    "mock:build": "node scripts/check-mock-fetch.js && sasjs compile -t mock && sasjs build -t mock",
     "mock:deploy": "node scripts/deploy-mocks.js",
     "prepare": "npm run adapter",
     "release": "sasjs-release",
     "release:dry": "sasjs-release --dry-run",
     "start": "cd src && python3 -m http.server 8000",
-    "test": "node test/reachability.js",
+    "test": "node --test test/mock-upload.test.js && node test/reachability.js",
     "test:e2e": "node test/e2e/run.js"
   },
   "devDependencies": {
-    "@sasjs/cli": "6.30.0",
+    "@sasjs/cli": "8.0.3",
     "@sasjs/release": "0.11.0",
     "playwright": "1.62.1"
   },
