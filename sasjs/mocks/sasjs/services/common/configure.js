@@ -22,52 +22,11 @@ const SYSDATE = ('0' + now.getDate()).slice(-2) + MONTHS[now.getMonth()] +
 const SYSTIME = ('0' + now.getHours()).slice(-2) + ':' +
   ('0' + now.getMinutes()).slice(-2)
 
-/* Parse a sasjs_tables CSV string.  The adapter sends:
- *   - header row as SPACE-separated `name:format.` entries (e.g.
- *     "rootdir:$char256.") - the format must be stripped
- *   - CRLF line endings
- *   - values containing special chars wrapped in double quotes ("" escaped)
- */
-/* the adapter may deliver an input table either as an inline CSV string
- * (const <name> = `...`) OR as an uploaded file - in that case the runtime
- * provides const _WEBIN_FILEREF<n> (staged file path),
- * _WEBIN_NAME<n> (table name), _WEBIN_FILENAME<n> and _WEBIN_FILE_COUNT.
- * NOTE: these are module-scope consts, NOT on globalThis - hence the
- * (direct) eval lookups below.  Server-side JS only; no CSP here. */
-function getTable(name) {
-  try {
-    const v = eval('typeof ' + name + ' !== "undefined" ? ' + name + ' : undefined')
-    if (v !== undefined) return String(v)
-  } catch (e) { /* fall through to file lookup */ }
-  if (typeof _WEBIN_FILE_COUNT !== 'undefined') {
-    for (let i = 1; i <= _WEBIN_FILE_COUNT; i++) {
-      const n = eval('typeof _WEBIN_NAME' + i + ' !== "undefined" ? _WEBIN_NAME' + i + ' : undefined')
-      if (n === name) return fs.readFileSync(eval('_WEBIN_FILEREF' + i), 'utf8')
-    }
-  }
-  return ''
-}
-
-function parseCsv(csv) {
-  const lines = String(csv || '').trim().split(/\r?\n/)
-  if (lines.length < 2) return []
-  const cols = lines[0].trim().split(/[ ,]+/).map((h) =>
-    h.replace(/:.*$/, '').trim().toUpperCase())
-  return lines.slice(1).map((l) => {
-    const vals = l.trim().split(',')
-    const row = {}
-    cols.forEach((c, i) => {
-      let v = (vals[i] || '').trim()
-      if (v.length > 1 && v[0] === '"' && v[v.length - 1] === '"') {
-        v = v.slice(1, -1).replace(/""/g, '"')
-      }
-      row[c] = v
-    })
-    return row
-  })
-}
-
-const rows = parseCsv(getTable('config'))
+/* The host-injected shared FETCH reads inline and staged input tables.
+ * SAS column names are case-insensitive; normalise the returned keys. */
+const rows = (webout('FETCH').config || []).map((row) =>
+  Object.fromEntries(Object.entries(row).map(([key, value]) => [key.toUpperCase(), value]))
+)
 const rootdir = rows.length ? rows[0].ROOTDIR : ''
 
 const path = require('path')

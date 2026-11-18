@@ -5,10 +5,14 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { test } = require('node:test')
+const { createRequire } = require('node:module')
+// Resolve the prelude from CLI's dependency tree, not an app-level utils pin.
+const cliRequire = createRequire(require.resolve('@sasjs/cli/package.json'))
+const { getWeboutPrelude } = cliRequire('@sasjs/utils')
 
 const serviceDir = path.join(__dirname, '../sasjs/mocks/sasjs/services/common')
 
-function run(service, uploadName, csv, failure) {
+function run(service, uploadName, csv, failure, inline = false) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'macro-upload-'))
   try {
     const weboutPath = path.join(root, 'sessions/s1/webout.txt')
@@ -30,13 +34,22 @@ function run(service, uploadName, csv, failure) {
       }
     }) : fs
     const source = fs.readFileSync(path.join(serviceDir, service + '.js'), 'utf8')
+    const prelude = getWeboutPrelude({
+      weboutPath, headersPath: path.join(root, 'headers.txt'),
+      program: '/Public/app/macrodash/services/common/' + service,
+      username: 'tester', userId: 'tester', debug: '', apiServerUrl: 'http://localhost'
+    })
+    const context = inline
+      ? { params: { sasjs_tables: uploadName, sasjs1data: fs.readFileSync(upload, 'utf8') } }
+      : { tables: [
+          { name: 'unrelated', filename: 'other.csv', get csv() { return fs.readFileSync(other, 'utf8') } },
+          { name: uploadName, filename: uploadName + '.csv', get csv() { return serviceFs.readFileSync(upload, 'utf8') } }
+        ] }
     const execute = new Function('require', 'fs', 'weboutPath', '_program', '_METAUSER',
-      'SASJSPROCESSMODE', 'fetch', '_WEBIN_FILE_COUNT', '_WEBIN_NAME1',
-      '_WEBIN_FILEREF1', '_WEBIN_NAME2', '_WEBIN_FILEREF2',
-      'let _webout;\n' + source + '\nreturn JSON.parse(_webout)')
+      'SASJSPROCESSMODE', 'fetch', '_sasjs_fetch_context', 'globalThis',
+      'let _webout;\n' + prelude + '\nconst webout = globalThis.webout;\n' + source + '\nreturn JSON.parse(_webout)')
     return execute(require, serviceFs, weboutPath, '/Public/app/macrodash/services/common/' + service,
-      'tester', 'mock', () => Promise.reject(new Error('no server')), 2,
-      'unrelated', other, uploadName, upload)
+      'tester', 'mock', () => Promise.reject(new Error('no server')), context, {})
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
@@ -54,6 +67,39 @@ test('savescore reads the named staged upload, not its path', () => {
   assert.equal(result.scores.length, 1)
   assert.equal(result.scores[0].NAME, 'Alice')
   assert.equal(result.scores[0].TIME, 12.5)
+  assert.equal(result.result[0].RANK, 1)
+})
+
+test('configure preserves a quoted comma in the staged rootdir', () => {
+  const result = run('configure', 'config', (root) => `rootdir:$char256.\r\n"${root}/with,comma"`)
+  assert.equal(result.result[0].STATUS, 'configured')
+  assert.match(result.result[0].ROOTDIR, /\/with,comma$/)
+})
+
+test('savescore preserves a quoted comma in the staged player name', () => {
+  const result = run('savescore', 'savescore',
+    'name:$char40. time:best. score:best. amps:best. done:best.\r\n"Alice,Dev",12.5,10,3,1')
+  assert.equal(result.scores[0].NAME, 'Alice,Dev')
+  assert.equal(result.scores[0].TIME, 12.5)
+})
+
+test('configure fetches an inline table', () => {
+  const result = run('configure', 'config', (root) => `RootDir:$char256.\r\n${root}/inline`, undefined, true)
+  assert.equal(result.result[0].STATUS, 'configured')
+  assert.match(result.result[0].ROOTDIR, /\/inline$/)
+})
+
+test('savescore fetches an inline table', () => {
+  const result = run('savescore', 'savescore',
+    'Name:$char40. Time:best. Score:best. Amps:best. Done:best.\r\nAlice,12.5,10,3,1', undefined, true)
+  assert.equal(result.scores[0].NAME, 'Alice')
+  assert.equal(result.scores[0].TIME, 12.5)
+})
+
+test('savescore ranks a DNF with a numeric missing time', () => {
+  const result = run('savescore', 'savescore',
+    'name:$char40. time:best. score:best. amps:best. done:best.\r\nAlice,.,0,0,0')
+  assert.equal(result.scores[0].TIME, null)
   assert.equal(result.result[0].RANK, 1)
 })
 

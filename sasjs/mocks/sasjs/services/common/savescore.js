@@ -16,48 +16,11 @@ const SYSDATE = ('0' + now.getDate()).slice(-2) + MONTHS[now.getMonth()] +
 const SYSTIME = ('0' + now.getHours()).slice(-2) + ':' +
   ('0' + now.getMinutes()).slice(-2)
 
-/* sasjs_tables CSV: space-separated `name:format.` headers, CRLF endings,
- * special-char values wrapped in double quotes - see configure.js */
-/* the adapter may deliver an input table either as an inline CSV string
- * (const <name> = `...`) OR as an uploaded file - in that case the runtime
- * provides const _WEBIN_FILEREF<n> (staged file path),
- * _WEBIN_NAME<n> (table name), _WEBIN_FILENAME<n> and _WEBIN_FILE_COUNT.
- * NOTE: these are module-scope consts, NOT on globalThis - hence the
- * (direct) eval lookups below.  Server-side JS only; no CSP here. */
-function getTable(name) {
-  try {
-    const v = eval('typeof ' + name + ' !== "undefined" ? ' + name + ' : undefined')
-    if (v !== undefined) return String(v)
-  } catch (e) { /* fall through to file lookup */ }
-  if (typeof _WEBIN_FILE_COUNT !== 'undefined') {
-    for (let i = 1; i <= _WEBIN_FILE_COUNT; i++) {
-      const n = eval('typeof _WEBIN_NAME' + i + ' !== "undefined" ? _WEBIN_NAME' + i + ' : undefined')
-      if (n === name) return fs.readFileSync(eval('_WEBIN_FILEREF' + i), 'utf8')
-    }
-  }
-  return ''
-}
-
-function parseCsv(csv) {
-  const lines = String(csv || '').trim().split(/\r?\n/)
-  if (lines.length < 2) return []
-  const cols = lines[0].trim().split(/[ ,]+/).map((h) =>
-    h.replace(/:.*$/, '').trim().toUpperCase())
-  return lines.slice(1).map((l) => {
-    const vals = l.trim().split(',')
-    const row = {}
-    cols.forEach((c, i) => {
-      let v = (vals[i] || '').trim()
-      if (v.length > 1 && v[0] === '"' && v[v.length - 1] === '"') {
-        v = v.slice(1, -1).replace(/""/g, '"')
-      }
-      row[c] = v
-    })
-    return row
-  })
-}
-
-const rows = parseCsv(getTable('savescore'))
+/* The host-injected shared FETCH reads inline and staged input tables.
+ * SAS column names are case-insensitive; normalise the returned keys. */
+const rows = (webout('FETCH').savescore || []).map((row) =>
+  Object.fromEntries(Object.entries(row).map(([key, value]) => [key.toUpperCase(), value]))
+)
 
 /* same contract as savescore.sas: abort when the backend is not configured
  * (a thrown error surfaces to the adapter as a failed request, like
@@ -130,8 +93,7 @@ if (rows.length) {
   scores = scores.slice(0, 50)
   const mine = scores[scores.length - 1] === undefined ? null :
     scores.find((s) => s.NAME === (r.NAME || 'MOCKUSER') &&
-      ((r.TIME === '' || r.TIME === undefined) ? s.TIME === null :
-       s.TIME === parseFloat(r.TIME)) && s.DONE === done)
+      s.TIME === tm && s.DONE === done)
   rank = mine ? scores.indexOf(mine) + 1 : null
   try {
     fs.writeFileSync(SCORES_FILE, JSON.stringify(scores))
