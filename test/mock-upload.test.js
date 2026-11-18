@@ -76,6 +76,14 @@ test('configure preserves a quoted comma in the staged rootdir', () => {
   assert.match(result.result[0].ROOTDIR, /\/with,comma$/)
 })
 
+test('savescore ignores blank physical rows and accepts a trailing CRLF', () => {
+  const result = run('savescore', 'savescore',
+    'name:$char40. time:best. score:best. amps:best. done:best.\r\n\r\nAlice,12.5,10,3,1\r\n\r\n')
+  assert.equal(result.scores.length, 1)
+  assert.equal(result.scores[0].NAME, 'Alice')
+  assert.equal(result.scores[0].TIME, 12.5)
+})
+
 test('savescore preserves a quoted comma in the staged player name', () => {
   const result = run('savescore', 'savescore',
     'name:$char40. time:best. score:best. amps:best. done:best.\r\n"Alice,Dev",12.5,10,3,1')
