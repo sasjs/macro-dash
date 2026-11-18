@@ -27,7 +27,8 @@ const SYSTIME = ('0' + now.getHours()).slice(-2) + ':' +
 const rows = (webout('FETCH').config || []).map((row) =>
   Object.fromEntries(Object.entries(row).map(([key, value]) => [key.toUpperCase(), value]))
 )
-const rootdir = rows.length ? rows[0].ROOTDIR : ''
+const inputRootdir = rows.length ? rows[0].ROOTDIR : undefined
+const rootdir = inputRootdir == null ? '' : String(inputRootdir)
 
 const path = require('path')
 /* Settings live under the apploc, as they do on SAS: configure.sas writes

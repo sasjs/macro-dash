@@ -70,6 +70,31 @@ test('savescore reads the named staged upload, not its path', () => {
   assert.equal(result.result[0].RANK, 1)
 })
 
+test('configure accepts numeric rootdirs, including zero, as paths', () => {
+  const cwd = process.cwd()
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'macro-numeric-'))
+  try {
+    process.chdir(scratch)
+    for (const number of ['123', '0']) {
+      const result = run('configure', 'config', `rootdir:best.\r\n${number}`)
+      assert.equal(result.result[0].STATUS, 'configured')
+      assert.equal(result.result[0].ROOTDIR, number)
+      assert.ok(fs.statSync(path.join(scratch, number)).isDirectory())
+    }
+  } finally {
+    process.chdir(cwd)
+    fs.rmSync(scratch, { recursive: true, force: true })
+  }
+})
+
+test('configure treats numeric missing and absent rootdir as no input', () => {
+  for (const csv of ['rootdir:best.\r\n.', 'other:$char4.\r\nhi']) {
+    const result = run('configure', 'config', csv)
+    assert.equal(result.result[0].STATUS, 'error: no rootdir provided')
+    assert.equal(result.result[0].ROOTDIR, '')
+  }
+})
+
 test('configure preserves a quoted comma in the staged rootdir', () => {
   const result = run('configure', 'config', (root) => `rootdir:$char256.\r\n"${root}/with,comma"`)
   assert.equal(result.result[0].STATUS, 'configured')

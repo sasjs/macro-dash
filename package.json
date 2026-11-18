@@ -7,7 +7,7 @@
     "audit:gate": "node scripts/audit.mjs",
     "deploy": "sasjs cbd -t local",
     "devsetup": "node scripts/devsetup.js",
-    "mock:build": "sasjs compile -t mock && sasjs build -t mock",
+    "mock:build": "node scripts/check-mock-fetch.js && sasjs compile -t mock && sasjs build -t mock",
     "mock:deploy": "node scripts/deploy-mocks.js",
     "prepare": "npm run adapter",
     "release": "sasjs-release",
