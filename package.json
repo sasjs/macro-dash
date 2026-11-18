@@ -17,7 +17,7 @@
     "test:e2e": "node test/e2e/run.js"
   },
   "devDependencies": {
-    "@sasjs/cli": "6.30.0",
+    "@sasjs/cli": "8.0.0",
     "@sasjs/release": "0.11.0",
     "playwright": "1.62.1"
   },
