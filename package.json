@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "adapter": "cp node_modules/@sasjs/adapter/dist/sasjs-adapter.js src/sasjs.js",
-    "audit:gate": "node scripts/audit.mjs",
+    "audit:gate": "sasjs-release --audit --audit-require-source --audit-require-severity",
     "deploy": "sasjs cbd -t local",
     "devsetup": "node scripts/devsetup.js",
     "mock:build": "node scripts/check-mock-fetch.js && sasjs compile -t mock && sasjs build -t mock",
@@ -13,12 +13,12 @@
     "release": "sasjs-release",
     "release:dry": "sasjs-release --dry-run",
     "start": "cd src && python3 -m http.server 8000",
-    "test": "node --test test/mock-upload.test.js && node test/reachability.js",
+    "test": "node --test test/mock-upload.test.js test/audit-gate.test.js && node test/reachability.js",
     "test:e2e": "node test/e2e/run.js"
   },
   "devDependencies": {
     "@sasjs/cli": "8.1.0",
-    "@sasjs/release": "0.14.0",
+    "@sasjs/release": "0.15.0",
     "playwright": "1.65.1"
   },
   "dependencies": {
