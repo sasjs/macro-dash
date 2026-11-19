@@ -227,8 +227,17 @@ async function waitForHost(p) {
      * three attempts, up to 3s each (2s for activation, 1s for control), plus
      * the boot. A shorter budget would fail over working code on a loaded
      * runner and blame the link. */
-    const MAX_ATTEMPTS = 3;
-    const ATTEMPT_WAIT_MS = 3000;
+    /* the numbers come from the script, not from a copy of it: a copy is how
+     * this budget and the fallback disagreed in the first place. Reading them
+     * means raising a wait in src/404.js moves this budget with it. */
+    const fallbackScript = fs.readFileSync(path.join(__dirname, '..', '..', 'src', '404.js'), 'utf8');
+    const scriptNumber = (name) => {
+      const m = fallbackScript.match(new RegExp('var\\s+' + name + '\\s*=\\s*(\\d+)'));
+      if (!m) throw new Error('src/404.js no longer states ' + name);
+      return Number(m[1]);
+    };
+    const MAX_ATTEMPTS = scriptNumber('MAX_ATTEMPTS');
+    const ATTEMPT_WAIT_MS = scriptNumber('WAIT_ACTIVATED_MS') + scriptNumber('WAIT_CONTROL_MS');
     const coldTicks = Math.ceil((MAX_ATTEMPTS * ATTEMPT_WAIT_MS + 5000) / 250);
 
     const coldPort = await freePort();
@@ -268,19 +277,28 @@ async function waitForHost(p) {
       const cold2 = await H.launch();
       try {
         await cold2.p.goto(missingUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await cold2.p.waitForTimeout(6000);
-        const settled = await cold2.p.evaluate(() => ({
-          text: (document.documentElement.textContent || '').trim().slice(0, 60),
-          game: !!(window.MACRODASH_STATE && window.MACRODASH_STATE())
-        })).catch(() => ({ text: '', game: false }));
+        /* poll for the answer itself, not for any text: the fallback's own
+         * "Loading Macro Dash..." is non-empty and would end the wait on the
+         * page that is still retrying */
+        let settled = { text: '', game: false };
+        for (let i = 0; i < coldTicks; i++) {
+          settled = await cold2.p.evaluate(() => ({
+            text: ((document.body && document.body.innerText) || '').trim().slice(0, 60),
+            game: !!(window.MACRODASH_STATE && window.MACRODASH_STATE())
+          })).catch(() => ({ text: '', game: false }));
+          if (/Parameter Error|not part of the published site/.test(settled.text)) break;
+          await cold2.p.waitForTimeout(250);
+        }
         const hitsA = coldServer.hits.get(missingKey) || 0;
         await cold2.p.waitForTimeout(2000);
         const hitsB = coldServer.hits.get(missingKey) || 0;
-        /* what it settles on is the tier's answer once the worker is in
-         * control ("Parameter Error") or the fallback's message before it -
-         * never the game, and never a request stream that keeps running */
-        (settled.game === false && hitsA === hitsB && hitsA <= MAX_ATTEMPTS + 1)
-          ? H.ok('streamed mock: an address the site does not carry settles, and stops')
+        /* the tier's own refusal, not merely "not the game": a page whose
+         * fallback never ran shows "Loading Macro Dash..." after one request
+         * and would pass a weaker predicate, which is the fault this case is
+         * meant to catch */
+        (settled.game === false && /Parameter Error/.test(settled.text) &&
+          hitsA === hitsB && hitsA <= MAX_ATTEMPTS + 1)
+          ? H.ok('streamed mock: an address the site does not carry settles on the tier refusal, and stops')
           : H.bad('streamed mock: missing address did not settle',
             JSON.stringify({ settled, hitsA, hitsB }));
 
