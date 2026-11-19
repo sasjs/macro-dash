@@ -92,7 +92,7 @@ function pagesLike() {
    * way to see from outside whether a counter blocked a navigation */
   const srv = http.createServer((req, res) => {
     const url = new global.URL(req.url, 'http://127.0.0.1');
-    const key = decodeURIComponent(url.pathname) + url.search;
+    const key = decodeURIComponent(url.pathname) + '?' + url.searchParams.toString();
     srv.hits.set(key, (srv.hits.get(key) || 0) + 1);
     let file = path.join(ROOT, decodeURIComponent(url.pathname));
     if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
@@ -224,20 +224,16 @@ async function waitForHost(p) {
      * state under test.
      *
      * The wait is sized from the fallback's own numbers rather than guessed:
-     * three attempts, up to 3s each (2s for activation, 1s for control), plus
-     * the boot. A shorter budget would fail over working code on a loaded
-     * runner and blame the link. */
-    /* the numbers come from the script, not from a copy of it: a copy is how
-     * this budget and the fallback disagreed in the first place. Reading them
-     * means raising a wait in src/404.js moves this budget with it. */
-    const fallbackScript = fs.readFileSync(path.join(__dirname, '..', '..', 'src', '404.js'), 'utf8');
+     * Each attempt can wait for readiness, activation and control, plus boot.
+     * Read the generated script rather than a project-local copy. */
+    const fallbackScript = fs.readFileSync(path.join(ROOT, '404.js'), 'utf8');
     const scriptNumber = (name) => {
       const m = fallbackScript.match(new RegExp('var\\s+' + name + '\\s*=\\s*(\\d+)'));
-      if (!m) throw new Error('src/404.js no longer states ' + name);
+      if (!m) throw new Error('generated 404.js no longer states ' + name);
       return Number(m[1]);
     };
     const MAX_ATTEMPTS = scriptNumber('MAX_ATTEMPTS');
-    const ATTEMPT_WAIT_MS = scriptNumber('WAIT_ACTIVATED_MS') + scriptNumber('WAIT_CONTROL_MS');
+    const ATTEMPT_WAIT_MS = scriptNumber('WAIT_READY_MS') + scriptNumber('WAIT_ACTIVATED_MS') + scriptNumber('WAIT_CONTROL_MS');
     const coldTicks = Math.ceil((MAX_ATTEMPTS * ATTEMPT_WAIT_MS + 5000) / 250);
 
     const coldPort = await freePort();
@@ -262,6 +258,10 @@ async function waitForHost(p) {
       state === 'title'
         ? H.ok('streamed mock: a cold deep link lands on the game, not a 404')
         : H.bad('streamed mock: cold deep link never loaded the game', String(state));
+      const configured = state === 'title' && await H.configure(cold.p, '/tmp/cold-link-scores');
+      configured
+        ? H.ok('streamed mock: the cold-linked game configures its backend')
+        : H.bad('streamed mock: cold-linked backend configuration failed');
 
       /* ---- 4. the same fallback for an address the site does not carry.
        * What settles there is the tier's answer, not the fallback's message:
@@ -271,8 +271,8 @@ async function waitForHost(p) {
        * STOPS: the request count after settling must equal the count two
        * seconds later. */
       const missing = loc + '/services/does-not-exist.html';
-      const missingKey = new global.URL('http://x/StoredProgram?_FILE=' + missing).pathname +
-        new global.URL('http://x/StoredProgram?_FILE=' + missing).search;
+      const missingAddress = new global.URL('http://x/StoredProgram?_FILE=' + missing);
+      const missingKey = missingAddress.pathname + '?' + missingAddress.searchParams.toString();
       const missingUrl = 'http://localhost:' + coldPort + '/StoredProgram?_FILE=' + missing;
       const cold2 = await H.launch();
       try {
@@ -286,7 +286,7 @@ async function waitForHost(p) {
             text: ((document.body && document.body.innerText) || '').trim().slice(0, 60),
             game: !!(window.MACRODASH_STATE && window.MACRODASH_STATE())
           })).catch(() => ({ text: '', game: false }));
-          if (/Parameter Error|not part of the published site/.test(settled.text)) break;
+          if (/Parameter Error|not part of this site/.test(settled.text)) break;
           await cold2.p.waitForTimeout(250);
         }
         const hitsA = coldServer.hits.get(missingKey) || 0;
@@ -302,64 +302,68 @@ async function waitForHost(p) {
           : H.bad('streamed mock: missing address did not settle',
             JSON.stringify({ settled, hitsA, hitsB }));
 
-        /* ---- 5. the give-up branch itself, with the worker stubbed out of
-         * the picture (a registration that never activates, so no navigation
-         * is ever intercepted). This is the only state in which the cap is
-         * reached, and it must end on the message rather than on a loop. */
+        /* ---- 5. The worker cannot register, so no navigation is intercepted. */
         const ctx = await cold2.b.newContext();
         await ctx.addInitScript(() => {
-          const reg = { active: null, installing: null, waiting: null, scope: '/',
-            ready: Promise.resolve(), addEventListener() {}, update: () => Promise.resolve() };
           Object.defineProperty(navigator, 'serviceWorker', {
             configurable: true,
-            get: () => ({ register: () => Promise.resolve(reg), ready: Promise.resolve(reg),
+            get: () => ({ register: () => Promise.reject(new Error('unavailable')),
               controller: null, addEventListener() {} })
           });
         });
         const page5 = await ctx.newPage();
+        const hitsBefore = coldServer.hits.get(missingKey) || 0;
         await page5.goto(missingUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
         let gave = null;
         for (let i = 0; i < coldTicks && !gave; i++) {
           gave = await page5.evaluate(() => {
             const m = document.getElementById('msg');
-            return (m && /not part of the published site/.test(m.textContent)) ? 'gave-up' : null;
+            return (m && /This page is not part of this site\./.test(m.textContent)) ? 'gave-up' : null;
           }).catch(() => null);
           if (!gave) await page5.waitForTimeout(250);
         }
         const hitsC = coldServer.hits.get(missingKey) || 0;
         await page5.waitForTimeout(1500);
         const hitsD = coldServer.hits.get(missingKey) || 0;
-        const stored = await page5.evaluate(() => sessionStorage.getItem('md-404-attempts'))
-          .then(v => { try { return JSON.parse(v); } catch (e) { return v; } })
-          .catch(() => null);
-        (gave === 'gave-up' && hitsC === hitsD)
+        (gave === 'gave-up' && hitsC === hitsD && hitsC - hitsBefore === MAX_ATTEMPTS + 1)
           ? H.ok('streamed mock: the cap ends on a message, not a loop')
-          : H.bad('streamed mock: give-up branch', JSON.stringify({ gave, hitsC, hitsD }));
+          : H.bad('streamed mock: give-up branch', JSON.stringify({ gave, hitsBefore, hitsC, hitsD }));
 
-        /* the counter names the address it was spent on, so a later link
-         * starts with its own budget - a session-wide counter stores a bare
-         * number here */
-        (stored && stored.target === '/StoredProgram?_FILE=' + missing && stored.n === MAX_ATTEMPTS)
-          ? H.ok('streamed mock: the attempt counter names the address it was spent on')
-          : H.bad('streamed mock: attempt counter is not per address', JSON.stringify(stored));
+        /* A failed visit must not spend the next visit's budget. */
+        await page5.reload({ waitUntil: 'domcontentloaded' });
+        let retried = false;
+        for (let i = 0; i < coldTicks; i++) {
+          if ((coldServer.hits.get(missingKey) || 0) > hitsD + 1) { retried = true; break; }
+          await page5.waitForTimeout(250);
+        }
+        retried
+          ? H.ok('streamed mock: reloading a failed address retries again')
+          : H.bad('streamed mock: failed address did not retry on reload');
         await ctx.close();
 
-        /* and the tab is not wedged: a good address after a bad one still
-         * opens the game */
-        await cold2.p.goto('http://localhost:' + coldPort + '/StoredProgram?_FILE=' + entry,
-          { waitUntil: 'domcontentloaded', timeout: 30000 });
-        const after = await (async () => {
-          for (let i = 0; i < coldTicks; i++) {
-            const s = await cold2.p.evaluate(() => (window.MACRODASH_STATE
+        /* A different address must not inherit a spent retry budget. Seed a
+         * record for the bad address in a fresh, uncontrolled context. */
+        const other = await H.launch();
+        try {
+          await other.p.context().addCookies([{
+            name: 'sasjs404',
+            value: encodeURIComponent(JSON.stringify({ target: '/StoredProgram?_FILE=' + missing, n: MAX_ATTEMPTS })),
+            url: 'http://localhost:' + coldPort + '/'
+          }]);
+          await other.p.goto('http://localhost:' + coldPort + '/StoredProgram?_FILE=' + entry,
+            { waitUntil: 'domcontentloaded', timeout: 30000 });
+          let after = null;
+          for (let i = 0; i < coldTicks && !after; i++) {
+            after = await other.p.evaluate(() => (window.MACRODASH_STATE
               ? window.MACRODASH_STATE() : null)).catch(() => null);
-            if (s) return s;
-            await cold2.p.waitForTimeout(250);
+            if (!after) await other.p.waitForTimeout(250);
           }
-          return null;
-        })();
-        after === 'title'
-          ? H.ok('streamed mock: a good address still opens after a bad one')
-          : H.bad('streamed mock: good address after a bad one', String(after));
+          after === 'title'
+            ? H.ok('streamed mock: a good address does not inherit a bad address budget')
+            : H.bad('streamed mock: good address after a spent budget', String(after));
+        } finally {
+          await other.b.close();
+        }
       } finally {
         await cold2.b.close();
       }
