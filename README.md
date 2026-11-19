@@ -88,7 +88,7 @@ To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 - `npm run mock:build` - compile + build the mocked site into `sasjsbuild/mock` (see below)
 - `npm run test:e2e` - Playwright e2e suite (7 suites / 45 assertions) against the mocked build and the no-backend `src/` build; covers the configurator, `#scores` routing, level transitions, DNF entries, the board buttons and the streamed deployment the mock host serves. It needs no SAS and no server: `test/e2e/run.js` serves `sasjsbuild/mock` (build it first) and the app's service worker is the backend.
 - `npm run adapter` - copy `src/sasjs.js` from `node_modules/@sasjs/adapter` (the repo's `.npmrc` sets `ignore-scripts=true`, so the old `prepare` hook no longer runs)
-- `npm run audit:gate` - dependency gate: fails on any advisory above `low` that is not listed in `scripts/audit-allowlist.json` with a reason
+- `npm run audit:gate` - run the shared `sasjs-release --audit` gate at the `low` severity floor. Waivers in `scripts/audit-allowlist.json` must include the npm advisory source and reviewed severity; production findings cannot be exempted, and stale waivers fail. The example in [the audit gate documentation](https://github.com/sasjs/release#the-audit-gate) must also be given `source` and `severity` for this repository; that documentation describes both fields and the recorded-report options.
 
 ## Releases
 

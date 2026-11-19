@@ -66,9 +66,9 @@ jobs:
           cache: npm
 
       # .npmrc carries ignore-scripts=true, so the adapter bundle is copied by
-      # its own step rather than by the prepare script - and the dependency
-      # gate runs on every build, refusing any advisory above the floor that is
-      # not in scripts/audit-allowlist.json with a reason.
+      # its own step rather than by the prepare script - and the shared audit
+      # gate runs on every build at the low severity floor. Waivers need the
+      # reviewed source and severity; production findings cannot be exempted.
       - run: npm ci
 
       - name: Copy the adapter bundle (src/sasjs.js is gitignored)
