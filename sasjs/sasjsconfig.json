@@ -62,7 +62,7 @@
       "streamConfig": {
         "mockWeb": true,
         "mockWebFolder": "sasjsbuild/mock",
-        "streamWeb": false,
+        "streamWeb": true,
         "webSourcePath": "src"
       }
     },

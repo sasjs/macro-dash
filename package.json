@@ -17,12 +17,12 @@
     "test:e2e": "node test/e2e/run.js"
   },
   "devDependencies": {
-    "@sasjs/cli": "8.0.3",
-    "@sasjs/release": "0.11.0",
-    "playwright": "1.62.1"
+    "@sasjs/cli": "8.0.5",
+    "@sasjs/release": "0.14.0",
+    "playwright": "1.65.1"
   },
   "dependencies": {
-    "@sasjs/adapter": "6.1.0",
-    "@sasjs/core": "5.1.0"
+    "@sasjs/adapter": "6.1.4",
+    "@sasjs/core": "7.1.15"
   }
 }
