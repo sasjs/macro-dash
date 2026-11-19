@@ -122,9 +122,9 @@ The site also carries the streamed deployment. The `mock` target builds with `st
 
 <https://dash.sasjs.io/StoredProgram?_FILE=/Public/app/macrodash/services/MacroDash.html>
 
-A first visit to that address works as well as a later one. Nothing on a static host answers the path itself, so the site publishes `src/404.html` as its not-found page: the fallback installs the service worker and asks for the same address again, because a worker can only answer a page it already controls - and a retry can land before the visiting page is one of them, so it allows three attempts, counted per address (one bad link does not spend a later link's budget).
+A first visit to that address works as well as a later one. Nothing on a static host answers the path itself, so the CLI generates `404.html` and `404.js` for the mock site: the fallback installs the service worker and asks for the same address again, because a worker can only answer a page it already controls - and a retry can land before the visiting page is one of them, so retries are capped and counted per address (one bad link does not spend a later link's budget).
 
-What a mistyped link shows depends on the worker. Once it is installed the tier answers the address itself, so a path the app does not carry settles on the estate's own refusal - `Parameter Error` / `File error` - after the first retry; that is the same answer a SASjs server gives for a missing file. The fallback's own message ("This page is not part of the published site.") is what a visitor gets when the worker cannot be registered at all. Neither case loops.
+What a mistyped link shows depends on the worker. Once it is installed the tier answers the address itself, so a path the app does not carry settles on the estate's own refusal - `Parameter Error` / `File error` - after the first retry; that is the same answer a SASjs server gives for a missing file. If the worker cannot be registered, the fallback eventually says "This page is not part of this site." Neither case loops.
 
 Publishing `src/` instead gives a frontend with no backend at all - every service call lands on the static host and `configure` answers 405.
 
