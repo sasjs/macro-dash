@@ -79,6 +79,33 @@ async function waitForServer(port) {
   return false;
 }
 
+/* GitHub Pages answers a path it has no file for with 404.html and a 404
+ * status; `python3 -m http.server` answers with a page of its own. The cold
+ * visit below is about what the published host does, so it runs against a host
+ * that behaves like that one rather than against the one the other suites use. */
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json' };
+
+function pagesLike() {
+  return http.createServer((req, res) => {
+    const url = new global.URL(req.url, 'http://127.0.0.1');
+    let file = path.join(ROOT, decodeURIComponent(url.pathname));
+    if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
+    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
+    if (fs.existsSync(file) && fs.statSync(file).isFile()) {
+      res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' });
+      return res.end(fs.readFileSync(file));
+    }
+    const fallback = path.join(ROOT, '404.html');
+    if (fs.existsSync(fallback)) {
+      res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(fs.readFileSync(fallback));
+    }
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Not Found');
+  });
+}
+
 /* a tier read means nothing before the worker is in control: the static host
  * would answer it from the filesystem, or 404 */
 async function waitForHost(p) {
@@ -181,6 +208,36 @@ async function waitForHost(p) {
     (booted.state === 'title' && booted.canvas)
       ? H.ok('streamed mock: the streamed entry page boots the game')
       : H.bad('streamed mock: boot', JSON.stringify(booted).slice(0, 200));
+
+    /* ---- 3. a cold visit: the address typed into a browser that has never
+     * loaded the site. No worker exists yet, so the request reaches the static
+     * host, which answers 404.html - and the fallback there has to install the
+     * worker and get the game itself. A fresh browser, not a new page: a
+     * registration outlives a page, and "there is no registration yet" is the
+     * state under test. */
+    const coldPort = await freePort();
+    const coldServer = pagesLike();
+    await new Promise(r => coldServer.listen(coldPort, '127.0.0.1', r));
+    const cold = await H.launch();
+    try {
+      await cold.p.goto('http://localhost:' + coldPort + '/StoredProgram?_FILE=' + entry,
+        { waitUntil: 'domcontentloaded', timeout: 30000 });
+      /* two retries and a game boot have to fit: 2s a retry is generous on a
+       * loaded runner, and a shorter budget fails over working code */
+      let state = null;
+      for (let i = 0; i < 80; i++) {
+        state = await cold.p.evaluate(() => (window.MACRODASH_STATE
+          ? window.MACRODASH_STATE() : null)).catch(() => null);
+        if (state) break;
+        await cold.p.waitForTimeout(250);
+      }
+      state === 'title'
+        ? H.ok('streamed mock: a cold deep link lands on the game, not a 404')
+        : H.bad('streamed mock: cold deep link never loaded the game', String(state));
+    } finally {
+      await cold.b.close();
+      coldServer.close();
+    }
   } catch (e) {
     H.bad('streamed mock threw', String(e && e.message || e));
   } finally {

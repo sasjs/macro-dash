@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Macro Dash</title>
+</head>
+<body>
+  <p id="msg">Loading Macro Dash...</p>
+  <script>
+  /* A static host answers an unknown path with this page. The site's backend is
+   * a service worker, and a worker only answers a page it controls - so the
+   * fallback installs it and asks for the same URL again. The first retry can
+   * still miss: the worker is active but the page that issued the navigation is
+   * not yet controlled. The second pass runs on a controlled page, so its
+   * retry is intercepted and the game loads. Two attempts, then say so rather
+   * than loop. */
+  (async function () {
+    var target = location.pathname + location.search + location.hash;
+    var KEY = 'md-404-attempts';
+    var msg = document.getElementById('msg');
+    var attempts = 0;
+    try { attempts = Number(sessionStorage.getItem(KEY) || 0); } catch (e) {}
+
+    function giveUp(text) {
+      msg.textContent = text;
+      msg.insertAdjacentHTML('afterend', '<p><a href="/">Open Macro Dash</a></p>');
+    }
+
+    if (!('serviceWorker' in navigator)) {
+      giveUp('This browser cannot open the game from a direct link.');
+      return;
+    }
+    if (attempts >= 2) {
+      giveUp('This page is not part of the published site.');
+      return;
+    }
+
+    try {
+      var reg = await navigator.serviceWorker.register('/sw.js');
+      await reg.ready;
+    } catch (e) { /* the retry below either works or the next pass says so */ }
+
+    try { sessionStorage.setItem(KEY, String(attempts + 1)); } catch (e) {}
+    location.replace(target);
+  })();
+  </script>
+</body>
+</html>
