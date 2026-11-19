@@ -87,8 +87,13 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascri
   '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json' };
 
 function pagesLike() {
-  return http.createServer((req, res) => {
+  /* every request is counted by path: a fallback that gives up shows as one
+   * request, one that retries shows as one per attempt, and that is the only
+   * way to see from outside whether a counter blocked a navigation */
+  const srv = http.createServer((req, res) => {
     const url = new global.URL(req.url, 'http://127.0.0.1');
+    const key = decodeURIComponent(url.pathname) + url.search;
+    srv.hits.set(key, (srv.hits.get(key) || 0) + 1);
     let file = path.join(ROOT, decodeURIComponent(url.pathname));
     if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
     if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
@@ -104,6 +109,8 @@ function pagesLike() {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Not Found');
   });
+  srv.hits = new Map();
+  return srv;
 }
 
 /* a tier read means nothing before the worker is in control: the static host
@@ -209,31 +216,135 @@ async function waitForHost(p) {
       ? H.ok('streamed mock: the streamed entry page boots the game')
       : H.bad('streamed mock: boot', JSON.stringify(booted).slice(0, 200));
 
-    /* ---- 3. a cold visit: the address typed into a browser that has never
+    /* ---- 3. cold visits: the address typed into a browser that has never
      * loaded the site. No worker exists yet, so the request reaches the static
      * host, which answers 404.html - and the fallback there has to install the
-     * worker and get the game itself. A fresh browser, not a new page: a
+     * worker and get the page asked for. A fresh browser, not a new page: a
      * registration outlives a page, and "there is no registration yet" is the
-     * state under test. */
+     * state under test.
+     *
+     * The wait is sized from the fallback's own numbers rather than guessed:
+     * three attempts, up to 3s each (2s for activation, 1s for control), plus
+     * the boot. A shorter budget would fail over working code on a loaded
+     * runner and blame the link. */
+    const MAX_ATTEMPTS = 3;
+    const ATTEMPT_WAIT_MS = 3000;
+    const coldTicks = Math.ceil((MAX_ATTEMPTS * ATTEMPT_WAIT_MS + 5000) / 250);
+
     const coldPort = await freePort();
     const coldServer = pagesLike();
     await new Promise(r => coldServer.listen(coldPort, '127.0.0.1', r));
     const cold = await H.launch();
-    try {
-      await cold.p.goto('http://localhost:' + coldPort + '/StoredProgram?_FILE=' + entry,
-        { waitUntil: 'domcontentloaded', timeout: 30000 });
-      /* two retries and a game boot have to fit: 2s a retry is generous on a
-       * loaded runner, and a shorter budget fails over working code */
-      let state = null;
-      for (let i = 0; i < 80; i++) {
-        state = await cold.p.evaluate(() => (window.MACRODASH_STATE
-          ? window.MACRODASH_STATE() : null)).catch(() => null);
-        if (state) break;
+
+    const settle = async (probe) => {
+      for (let i = 0; i < coldTicks; i++) {
+        const value = await cold.p.evaluate(probe).catch(() => null);
+        if (value) return value;
         await cold.p.waitForTimeout(250);
       }
+      return null;
+    };
+
+    try {
+      const coldUrl = 'http://localhost:' + coldPort + '/StoredProgram?_FILE=' + entry;
+      await cold.p.goto(coldUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      const state = await settle(() => (window.MACRODASH_STATE
+        ? window.MACRODASH_STATE() : null));
       state === 'title'
         ? H.ok('streamed mock: a cold deep link lands on the game, not a 404')
         : H.bad('streamed mock: cold deep link never loaded the game', String(state));
+
+      /* ---- 4. the same fallback for an address the site does not carry.
+       * What settles there is the tier's answer, not the fallback's message:
+       * the first pass registers the worker, and every later pass is then
+       * intercepted and answered 202 "Parameter Error" - which is the estate's
+       * answer for a file that is not there. The claim worth testing is that it
+       * STOPS: the request count after settling must equal the count two
+       * seconds later. */
+      const missing = loc + '/services/does-not-exist.html';
+      const missingKey = new global.URL('http://x/StoredProgram?_FILE=' + missing).pathname +
+        new global.URL('http://x/StoredProgram?_FILE=' + missing).search;
+      const missingUrl = 'http://localhost:' + coldPort + '/StoredProgram?_FILE=' + missing;
+      const cold2 = await H.launch();
+      try {
+        await cold2.p.goto(missingUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await cold2.p.waitForTimeout(6000);
+        const settled = await cold2.p.evaluate(() => ({
+          text: (document.documentElement.textContent || '').trim().slice(0, 60),
+          game: !!(window.MACRODASH_STATE && window.MACRODASH_STATE())
+        })).catch(() => ({ text: '', game: false }));
+        const hitsA = coldServer.hits.get(missingKey) || 0;
+        await cold2.p.waitForTimeout(2000);
+        const hitsB = coldServer.hits.get(missingKey) || 0;
+        /* what it settles on is the tier's answer once the worker is in
+         * control ("Parameter Error") or the fallback's message before it -
+         * never the game, and never a request stream that keeps running */
+        (settled.game === false && hitsA === hitsB && hitsA <= MAX_ATTEMPTS + 1)
+          ? H.ok('streamed mock: an address the site does not carry settles, and stops')
+          : H.bad('streamed mock: missing address did not settle',
+            JSON.stringify({ settled, hitsA, hitsB }));
+
+        /* ---- 5. the give-up branch itself, with the worker stubbed out of
+         * the picture (a registration that never activates, so no navigation
+         * is ever intercepted). This is the only state in which the cap is
+         * reached, and it must end on the message rather than on a loop. */
+        const ctx = await cold2.b.newContext();
+        await ctx.addInitScript(() => {
+          const reg = { active: null, installing: null, waiting: null, scope: '/',
+            ready: Promise.resolve(), addEventListener() {}, update: () => Promise.resolve() };
+          Object.defineProperty(navigator, 'serviceWorker', {
+            configurable: true,
+            get: () => ({ register: () => Promise.resolve(reg), ready: Promise.resolve(reg),
+              controller: null, addEventListener() {} })
+          });
+        });
+        const page5 = await ctx.newPage();
+        await page5.goto(missingUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        let gave = null;
+        for (let i = 0; i < coldTicks && !gave; i++) {
+          gave = await page5.evaluate(() => {
+            const m = document.getElementById('msg');
+            return (m && /not part of the published site/.test(m.textContent)) ? 'gave-up' : null;
+          }).catch(() => null);
+          if (!gave) await page5.waitForTimeout(250);
+        }
+        const hitsC = coldServer.hits.get(missingKey) || 0;
+        await page5.waitForTimeout(1500);
+        const hitsD = coldServer.hits.get(missingKey) || 0;
+        const stored = await page5.evaluate(() => sessionStorage.getItem('md-404-attempts'))
+          .then(v => { try { return JSON.parse(v); } catch (e) { return v; } })
+          .catch(() => null);
+        (gave === 'gave-up' && hitsC === hitsD)
+          ? H.ok('streamed mock: the cap ends on a message, not a loop')
+          : H.bad('streamed mock: give-up branch', JSON.stringify({ gave, hitsC, hitsD }));
+
+        /* the counter names the address it was spent on, so a later link
+         * starts with its own budget - a session-wide counter stores a bare
+         * number here */
+        (stored && stored.target === '/StoredProgram?_FILE=' + missing && stored.n === MAX_ATTEMPTS)
+          ? H.ok('streamed mock: the attempt counter names the address it was spent on')
+          : H.bad('streamed mock: attempt counter is not per address', JSON.stringify(stored));
+        await ctx.close();
+
+        /* and the tab is not wedged: a good address after a bad one still
+         * opens the game */
+        await cold2.p.goto('http://localhost:' + coldPort + '/StoredProgram?_FILE=' + entry,
+          { waitUntil: 'domcontentloaded', timeout: 30000 });
+        const after = await (async () => {
+          for (let i = 0; i < coldTicks; i++) {
+            const s = await cold2.p.evaluate(() => (window.MACRODASH_STATE
+              ? window.MACRODASH_STATE() : null)).catch(() => null);
+            if (s) return s;
+            await cold2.p.waitForTimeout(250);
+          }
+          return null;
+        })();
+        after === 'title'
+          ? H.ok('streamed mock: a good address still opens after a bad one')
+          : H.bad('streamed mock: good address after a bad one', String(after));
+      } finally {
+        await cold2.b.close();
+      }
     } finally {
       await cold.b.close();
       coldServer.close();

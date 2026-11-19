@@ -3,67 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; object-src 'none'; base-uri 'self'">
   <title>Macro Dash</title>
 </head>
 <body>
   <p id="msg">Loading Macro Dash...</p>
-  <script>
-  /* A static host answers an unknown path with this page. The site's backend is
-   * a service worker, and a worker only answers a page it already controls - so
-   * the fallback installs it and asks for the same address again.
-   *
-   * A retry can miss: the worker is active but the page that issued the
-   * navigation is not controlled yet, and under load that window is wide
-   * enough to swallow more than one attempt. Once the page IS controlled the
-   * next navigation is certainly intercepted, so this keeps trying for a few
-   * attempts rather than deciding after two, and gives up only when the cap is
-   * reached - at which point the address really is not part of the site. */
-  (async function () {
-    var target = location.pathname + location.search + location.hash;
-    var KEY = 'md-404-attempts';
-    var MAX_ATTEMPTS = 5;
-    var msg = document.getElementById('msg');
-    var attempts = 0;
-    try { attempts = Number(sessionStorage.getItem(KEY) || 0); } catch (e) {}
-
-    function giveUp(text) {
-      msg.textContent = text;
-      msg.insertAdjacentHTML('afterend', '<p><a href="/">Open Macro Dash</a></p>');
-    }
-
-    if (!('serviceWorker' in navigator)) {
-      giveUp('This browser cannot open the game from a direct link.');
-      return;
-    }
-    if (attempts >= MAX_ATTEMPTS) {
-      giveUp('This page is not part of the published site.');
-      return;
-    }
-
-    try {
-      var reg = await navigator.serviceWorker.register('/sw.js');
-      await reg.ready;
-      /* an activating worker is not yet an intercepting one: wait for the
-       * activated state, and for control of this page when it comes */
-      if (reg.active && reg.active.state !== 'activated') {
-        await new Promise(function (resolve) {
-          reg.active.addEventListener('statechange', function () {
-            if (reg.active.state === 'activated') resolve();
-          });
-          setTimeout(resolve, 3000);
-        });
-      }
-      if (!navigator.serviceWorker.controller) {
-        await new Promise(function (resolve) {
-          navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true });
-          setTimeout(resolve, 1500);
-        });
-      }
-    } catch (e) { /* the retry below either works or the next attempt says so */ }
-
-    try { sessionStorage.setItem(KEY, String(attempts + 1)); } catch (e) {}
-    location.replace(target);
-  })();
-  </script>
+  <script src="/404.js"></script>
 </body>
 </html>

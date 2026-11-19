@@ -86,7 +86,7 @@ To stop the server: `pkill -f api-linux` (or `api-macos` / `api-win.exe`).
 - `npm start` - static-only serving of `src/` on :8000 (no backend; localStorage mode)
 - `npm test` - reachability test (BFS over engine physics for all levels)
 - `npm run mock:build` - compile + build the mocked site into `sasjsbuild/mock` (see below)
-- `npm run test:e2e` - Playwright e2e suite (7 suites / 41 assertions) against the mocked build and the no-backend `src/` build; covers the configurator, `#scores` routing, level transitions, DNF entries, the board buttons and the streamed deployment the mock host serves. It needs no SAS and no server: `test/e2e/run.js` serves `sasjsbuild/mock` (build it first) and the app's service worker is the backend.
+- `npm run test:e2e` - Playwright e2e suite (7 suites / 45 assertions) against the mocked build and the no-backend `src/` build; covers the configurator, `#scores` routing, level transitions, DNF entries, the board buttons and the streamed deployment the mock host serves. It needs no SAS and no server: `test/e2e/run.js` serves `sasjsbuild/mock` (build it first) and the app's service worker is the backend.
 - `npm run adapter` - copy `src/sasjs.js` from `node_modules/@sasjs/adapter` (the repo's `.npmrc` sets `ignore-scripts=true`, so the old `prepare` hook no longer runs)
 - `npm run audit:gate` - dependency gate: fails on any advisory above `low` that is not listed in `scripts/audit-allowlist.json` with a reason
 
@@ -122,7 +122,7 @@ The site also carries the streamed deployment. The `mock` target builds with `st
 
 <https://dash.sasjs.io/StoredProgram?_FILE=/Public/app/macrodash/services/MacroDash.html>
 
-A first visit to that address works as well as a later one. Nothing on a static host answers the path itself, so the site publishes `src/404.html` as its not-found page: the fallback installs the service worker and asks for the same address again, because a worker can only answer a page it already controls - the first retry can land before the visiting page is one of them, so it retries twice and then says the page is not part of the site rather than looping.
+A first visit to that address works as well as a later one. Nothing on a static host answers the path itself, so the site publishes `src/404.html` as its not-found page: the fallback installs the service worker and asks for the same address again, because a worker can only answer a page it already controls - and a retry can land before the visiting page is one of them. It allows three attempts, counted per address (one bad link does not spend a later link's budget), and then says the page is not part of the site rather than looping.
 
 Publishing `src/` instead gives a frontend with no backend at all - every service call lands on the static host and `configure` answers 405.
 
